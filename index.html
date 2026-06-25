@@ -5,9 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="theme-color" content="#1a0b2e" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>%F0%9F%91%91</text></svg>" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>Sexcalibur — Two Players, One Throne</title>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ⚙️  SUPABASE CONFIG  (optional — for TWO-DEVICE play)
+     ───────────────────────────────────────────────────────────────────────
+     Leave these BLANK and the game works perfectly in single-device,
+     pass-and-play mode (everything stays on this phone, no cloud).
+
+     To enable two-device play (each partner on their own phone):
+       1. Supabase → your project → Settings → API
+       2. Paste the Project URL + anon public key below.
+          (The anon key is SAFE to ship publicly — Row Level Security
+           is what protects the data, not key secrecy.)
+       3. Run the SQL from the README/spec in the Supabase SQL editor.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+  window.SXC_CONFIG = {
+    SUPABASE_URL:      "",   // ← e.g. "https://abcdefgh.supabase.co"   (blank = single-device only)
+    SUPABASE_ANON_KEY: "",   // ← e.g. "eyJhbGciOi..."                   (blank = single-device only)
+    ROOM_TTL_HOURS:    12     // rooms auto-expire after this many hours
+  };
+</script>
+<!-- Supabase JS SDK (only used if creds above are filled in). Safe to keep loaded. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
   :root{
     --bg:#140a24; --bg2:#1f0f36; --card:#241141; --card2:#2e1652;
@@ -26,9 +51,12 @@
       linear-gradient(180deg,var(--bg),var(--bg2));
     color:var(--ink); min-height:100vh; overflow-x:hidden;
   }
-  #app{max-width:560px; margin:0 auto; padding:18px 16px 40px; min-height:100vh}
+  #app{max-width:560px; margin:0 auto; padding:18px 16px 80px; min-height:100vh}
   .screen{animation:rise .35s cubic-bezier(.2,.8,.2,1)}
   @keyframes rise{from{opacity:0; transform:translateY(14px)}to{opacity:1; transform:none}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+  @keyframes reelroll{from{transform:translateY(0)}to{transform:translateY(-50%)}}
   h1,h2,h3{margin:0 0 .4em; line-height:1.1}
   .serif{font-family:"Georgia","Times New Roman",serif}
   .crown{font-size:54px; filter:drop-shadow(0 6px 14px rgba(244,201,93,.4))}
@@ -42,7 +70,7 @@
   .muted{color:var(--muted)}
   .center{text-align:center}
   .pill{display:inline-block; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:700;
-    background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted)}
+    background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); cursor:pointer}
   .panel{background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--line);
     border-radius:20px; padding:20px; box-shadow:var(--shadow)}
   .panel + .panel{margin-top:14px}
@@ -55,6 +83,8 @@
     background:rgba(0,0,0,.25); color:var(--ink); font-size:16px; outline:none;
   }
   input[type=text]:focus{border-color:var(--violet); box-shadow:0 0 0 3px rgba(155,109,255,.25)}
+  .code-input{font-family:"Georgia",serif; font-size:28px; font-weight:800; letter-spacing:8px;
+    text-align:center; text-transform:uppercase}
   textarea{
     width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line);
     background:rgba(0,0,0,.25); color:var(--ink); font-size:15px; outline:none; resize:vertical; min-height:64px;
@@ -77,10 +107,12 @@
   }
   .btn:active{transform:translateY(1px)}
   .btn.rose{background:linear-gradient(180deg,var(--rose),var(--rose2)); color:#2a0016; box-shadow:0 10px 24px rgba(255,77,141,.3)}
+  .btn.violet{background:linear-gradient(180deg,#a883ff,#8254ff); color:#fff; box-shadow:0 10px 24px rgba(130,84,255,.3)}
   .btn.ghost{background:transparent; color:var(--muted); border:1px solid var(--line); box-shadow:none}
   .btn.sm{padding:11px; font-size:14px; margin-top:0}
   .btn:disabled{opacity:.45; cursor:not-allowed}
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
   .check{display:flex; gap:10px; align-items:flex-start; margin-top:14px; cursor:pointer}
   .check input{width:22px; height:22px; margin-top:1px; accent-color:var(--rose)}
   .slider{width:100%; accent-color:var(--rose); margin-top:8px}
@@ -97,6 +129,7 @@
     background:linear-gradient(160deg,#33184f,#491d52 70%,#5a2240)}
   .qcat{font-size:12px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--gold)}
   .qtext{font-size:22px; font-weight:700; line-height:1.32; margin:14px 0 10px; font-family:"Georgia",serif}
+  .qflavor{font-style:italic; color:var(--gold); font-size:14px; margin-top:6px}
   .qpts{position:absolute; top:18px; right:18px; font-weight:900; color:var(--gold); font-size:14px}
   .turnFlag{font-size:13px; color:var(--rose2); font-weight:800; letter-spacing:.4px; margin-bottom:6px}
   .react{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px}
@@ -114,7 +147,7 @@
   .ach .d{font-size:12px; color:var(--muted)}
   .toast{position:fixed; left:50%; top:18px; transform:translateX(-50%) translateY(-20px); z-index:80;
     background:linear-gradient(180deg,var(--gold),var(--gold2)); color:#2a1c00; padding:12px 18px; border-radius:14px;
-    font-weight:800; box-shadow:var(--shadow); opacity:0; transition:.3s}
+    font-weight:800; box-shadow:var(--shadow); opacity:0; transition:.3s; max-width:90%; text-align:center}
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
   .modes{display:grid; gap:10px; margin-top:6px}
   .mode{display:flex; gap:14px; align-items:center; padding:16px; border-radius:16px; border:1px solid var(--line);
@@ -130,6 +163,43 @@
   .phaseDot{flex:1; height:6px; border-radius:999px; background:var(--line)}
   .phaseDot.on{background:linear-gradient(90deg,var(--rose),var(--gold))}
   .big{font-size:38px}
+  /* meters */
+  .meter{height:18px; border-radius:999px; background:rgba(0,0,0,.3); border:1px solid var(--line); overflow:hidden}
+  .meter > i{display:block; height:100%; background:linear-gradient(90deg,var(--rose),var(--gold)); transition:width .4s ease}
+  /* quick quest timer ring */
+  .ring{position:relative; width:74px; height:74px; margin:0 auto}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .t{position:absolute; inset:0; display:grid; place-items:center; font-weight:900; font-size:24px; font-family:"Georgia",serif}
+  .combo{display:inline-block; padding:3px 10px; border-radius:999px; font-weight:800; font-size:13px;
+    background:linear-gradient(90deg,var(--rose),var(--gold)); color:#2a0016}
+  /* roulette reels */
+  .reels{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:14px 0}
+  .reel{height:96px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.3);
+    display:grid; place-items:center; text-align:center; overflow:hidden; position:relative}
+  .reel .rl{font-size:30px; line-height:1.1}
+  .reel.rolling .rl{animation:reelroll .25s linear infinite}
+  .reel .cap{position:absolute; bottom:6px; left:0; right:0; font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.5px}
+  /* bracket */
+  .bracket{display:flex; flex-direction:column; gap:10px; margin:10px 0}
+  .matchrow{display:flex; gap:8px; align-items:stretch}
+  .seat{flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:rgba(0,0,0,.2); font-size:13px; font-weight:700}
+  .seat.win{border-color:var(--gold); background:rgba(244,201,93,.12)}
+  .seat.out{opacity:.4; text-decoration:line-through}
+  .seat.bye{opacity:.6; font-style:italic}
+  .vs{display:grid; place-items:center; font-size:11px; color:var(--muted); width:24px}
+  .codexgrp h4{color:var(--gold); margin:18px 0 8px; font-family:"Georgia",serif}
+  .codexcard{padding:12px 14px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.18); margin-top:8px}
+  .codexcard .nm{font-weight:800; font-size:15px}
+  .codexcard .pips{color:var(--rose2); font-size:12px; font-weight:800; letter-spacing:2px}
+  .codexcard .ds{font-size:13px; color:var(--muted); margin-top:4px; line-height:1.4}
+  .codexcard .fl{font-style:italic; color:var(--gold); font-size:12px; margin-top:6px}
+  .seg{display:flex; gap:6px; background:rgba(0,0,0,.25); padding:4px; border-radius:12px; border:1px solid var(--line)}
+  .seg button{flex:1; padding:9px; border-radius:9px; border:0; background:transparent; color:var(--muted); font-weight:800; font-size:13px; cursor:pointer}
+  .seg button.on{background:linear-gradient(180deg,var(--gold),var(--gold2)); color:#2a1c00}
+  .syncdot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle}
+  .syncdot.live{background:var(--good); box-shadow:0 0 8px var(--good)}
+  .syncdot.off{background:#6f5a93}
+  .waitcrest{font-size:60px; animation:pulse 1.6s ease-in-out infinite}
 </style>
 </head>
 <body>
@@ -137,85 +207,296 @@
 <div id="toast" class="toast"></div>
 
 <script>
+"use strict";
 /* =========================================================================
-   SEXCALIBUR — a two-player royal conquest. Self-contained, local-only.
-   Pass-and-play. No accounts, no server, nothing leaves this device.
+   SEXCALIBUR v2 — a two-player royal conquest.
+   Single self-contained HTML. Works single-device (pass-and-play) out of the
+   box; optional two-device room-code sync via Supabase when creds are set.
+   Tasteful · funny · consent-forward. Hard limits are a hard lockout.
    ========================================================================= */
 
-/* ---------- Tag vocabulary (used for interests AND hard limits) ---------- */
-const TAGS = [
-  "Kissing","Massage","Dirty talk","Teasing","Striptease","Hands","Oral (give)","Oral (receive)",
-  "Toys","Blindfold","Light restraint","Spanking","Roleplay","Sensory (ice/feather)","Temperature",
-  "Biting","Hair-pulling","Position play","Risky/adventurous","Filthy photos"
+/* ===================================================================== *
+ * SECTION 1 — CANONICAL TAG TAXONOMY                                     *
+ * ===================================================================== */
+const TAGS_CANON = [
+  "kissing","massage","hands","oral_give","oral_receive","sensory_light",
+  "temperature","biting","hair_pulling","spanking","scratching",
+  "teasing","dirty_talk","striptease","dominance","submission","restraint",
+  "blindfold","toys","roleplay","worship","edging",
+  "position_basic","position_athletic","position_intimate","position_adventurous",
+  "photos","semi_public","mirror","food_play","outfit"
 ];
 
-/* ---------- The Quest Deck ----------
-   spice: 1 Mild · 2 Medium · 3 Spicy · 4 Wild
-   tag: matched against the RECEIVER's hard limits (filtered out) and interests (boosted)
-   pts: base glory awarded for completing
-*/
-const DECK = [
-  // ---- MILD (1) : warm-up, clothes mostly on ----
-  {cat:"Foreplay", spice:1, pts:10, tag:"Kissing", text:"Kiss them somewhere you've never kissed them before. Hold it for 20 seconds."},
-  {cat:"Tease", spice:1, pts:10, tag:"Dirty talk", text:"Whisper the single most scandalous thing you'd do later — then walk away."},
-  {cat:"Foreplay", spice:1, pts:12, tag:"Massage", text:"Two-minute shoulder & neck massage. With intent. No rushing."},
-  {cat:"Tease", spice:1, pts:10, tag:"Teasing", text:"Trace one fingertip from the back of their neck down their spine. Slowly."},
-  {cat:"Dare", spice:1, pts:12, tag:"Dirty talk", text:"Describe, out loud, your favorite thing they do to you."},
-  {cat:"Foreplay", spice:1, pts:12, tag:"Kissing", text:"Make out like it's a first date and you might get caught. 60 seconds, hands above the waist."},
-  {cat:"Tease", spice:1, pts:10, tag:"Striptease", text:"Remove ONE item of their clothing — their choice which — as slowly as you can."},
-  {cat:"Dare", spice:1, pts:10, tag:"Teasing", text:"Give them a look so dirty it doesn't need words. Hold eye contact for 15 seconds."},
+/* ===================================================================== *
+ * SECTION 2 — SIX DISTINCT PREFERENCE SETS  (label + canonical tags)     *
+ * ===================================================================== */
+const SET_RECEIVE = [
+  {label:"Slow, deep kissing",        t:["kissing"]},
+  {label:"Having my neck kissed",     t:["kissing","biting"]},
+  {label:"Long massages",             t:["massage"]},
+  {label:"Being teased until I beg",  t:["teasing","edging"]},
+  {label:"Dirty talk in my ear",      t:["dirty_talk"]},
+  {label:"Receiving oral",            t:["oral_receive"]},
+  {label:"Wandering hands",           t:["hands"]},
+  {label:"Having my hair pulled",     t:["hair_pulling"]},
+  {label:"A firm hand (spanking)",    t:["spanking"]},
+  {label:"Gentle biting",             t:["biting"]},
+  {label:"Being pinned down",         t:["restraint","dominance"]},
+  {label:"Being told what to do",     t:["submission","dominance"]},
+  {label:"Being worshipped head-to-toe", t:["worship"]},
+  {label:"Light scratching",          t:["scratching"]},
+  {label:"Toys used on me",           t:["toys"]},
+  {label:"Being undressed slowly",    t:["striptease"]},
+];
+const SET_GIVE = [
+  {label:"Kissing every inch of them",  t:["kissing","worship"]},
+  {label:"Giving long massages",        t:["massage"]},
+  {label:"Going down on them",          t:["oral_give"]},
+  {label:"Teasing them mercilessly",    t:["teasing","edging"]},
+  {label:"Talking dirty to them",       t:["dirty_talk"]},
+  {label:"Taking control",              t:["dominance"]},
+  {label:"Following their orders",      t:["submission"]},
+  {label:"Using my hands on them",      t:["hands"]},
+  {label:"Undressing them slowly",      t:["striptease"]},
+  {label:"Putting on a show for them",  t:["striptease","dirty_talk"]},
+  {label:"Spoiling them with a toy",    t:["toys"]},
+  {label:"Pinning them down",           t:["restraint","dominance"]},
+  {label:"Pulling their hair",          t:["hair_pulling"]},
+  {label:"A well-placed smack",         t:["spanking"]},
+];
+const SET_CURIOUS = [
+  {label:"Blindfolds & guessing games", t:["blindfold","sensory_light"]},
+  {label:"Light restraint (a scarf, wrists)", t:["restraint"]},
+  {label:"Taking turns being in charge", t:["dominance","submission"]},
+  {label:"A bit of roleplay",            t:["roleplay"]},
+  {label:"Bringing in a toy",            t:["toys"]},
+  {label:"Temperature play (ice, warm)", t:["temperature","sensory_light"]},
+  {label:"Trying a new position",        t:["position_adventurous","position_athletic"]},
+  {label:"A tasteful photo (deleted after)", t:["photos"]},
+  {label:"In front of a mirror",         t:["mirror"]},
+  {label:"A little food play",           t:["food_play"]},
+  {label:"Somewhere we 'might' get caught", t:["semi_public"]},
+  {label:"Dressing up / an outfit",      t:["outfit"]},
+  {label:"Being edged to the brink",     t:["edging"]},
+  {label:"Worshipped / worshipping",     t:["worship"]},
+];
+const SET_SENSATIONS = [
+  {label:"Feather-light & teasing",   t:["sensory_light","teasing"]},
+  {label:"Firm & grabby",             t:["hands","dominance"]},
+  {label:"Warm (breath, gentle heat)", t:["temperature"]},
+  {label:"Cool (ice, a cold sip)",    t:["temperature"]},
+  {label:"A sharp little sting",      t:["spanking","biting"]},
+  {label:"Slow build, no rushing",    t:["teasing","edging"]},
+  {label:"Nails down the back",       t:["scratching"]},
+  {label:"Wet & messy kisses",        t:["kissing","oral_give"]},
+  {label:"Pressure & weight on me",   t:["restraint","dominance"]},
+  {label:"Soft & worshipful",         t:["worship","massage"]},
+];
+const SET_ROLEPLAY = [
+  {label:"Strangers who just met",        t:["roleplay"]},
+  {label:"The 'forbidden' reunion",       t:["roleplay"]},
+  {label:"Royalty & loyal servant",       t:["roleplay","dominance","submission"]},
+  {label:"Conqueror & surrendered castle", t:["roleplay","dominance"]},
+  {label:"Boss / new hire (after hours)", t:["roleplay","dominance"]},
+  {label:"The massage that goes further", t:["roleplay","massage"]},
+  {label:"Photographer & muse",           t:["roleplay","photos"]},
+  {label:"Caught & 'punished'",           t:["roleplay","spanking"]},
+  {label:"Long-distance lovers, finally", t:["roleplay","teasing"]},
+  {label:"Teacher of one specific lesson", t:["roleplay","dominance"]},
+];
+const SET_LIMITS = [
+  {label:"No spanking / impact",      t:["spanking"]},
+  {label:"No biting",                 t:["biting"]},
+  {label:"No hair-pulling",           t:["hair_pulling"]},
+  {label:"No scratching",             t:["scratching"]},
+  {label:"No restraint / being held down", t:["restraint"]},
+  {label:"No blindfolds",             t:["blindfold"]},
+  {label:"No dominance/submission play", t:["dominance","submission"]},
+  {label:"No dirty talk",             t:["dirty_talk"]},
+  {label:"No toys",                   t:["toys"]},
+  {label:"No roleplay",               t:["roleplay"]},
+  {label:"No oral",                   t:["oral_give","oral_receive"]},
+  {label:"No temperature/ice play",   t:["temperature"]},
+  {label:"No photos — ever",          t:["photos"]},
+  {label:"Nothing semi-public",       t:["semi_public"]},
+  {label:"No food play",              t:["food_play"]},
+  {label:"No mirrors",                t:["mirror"]},
+];
+/* registry so helpers can resolve a label->tags for any group */
+const SET_OF = { receive:SET_RECEIVE, give:SET_GIVE, curious:SET_CURIOUS,
+                 sensations:SET_SENSATIONS, roleplay:SET_ROLEPLAY, limits:SET_LIMITS };
 
-  // ---- MEDIUM (2) ----
-  {cat:"Foreplay", spice:2, pts:18, tag:"Kissing", text:"Kiss a slow trail from their jaw, down the neck, to the collarbone. Don't skip ahead."},
-  {cat:"Sensory", spice:2, pts:18, tag:"Blindfold", text:"Blindfold them. Make them guess three things you press to their lips by taste alone."},
-  {cat:"Tease", spice:2, pts:18, tag:"Striptease", text:"30-second dance. They're not allowed to touch until you say so."},
-  {cat:"Position", spice:2, pts:20, tag:"Position play", text:"Pull them onto your lap, face to face. Stay there and tease for one full minute."},
-  {cat:"Dare", spice:2, pts:18, tag:"Hands", text:"Hands only, over the clothes, for 90 seconds. Find out what makes them inhale sharply."},
-  {cat:"Sensory", spice:2, pts:18, tag:"Hair-pulling", text:"A gentle fistful of hair and a slow kiss. Read the reaction — adjust accordingly."},
-  {cat:"Tease", spice:2, pts:20, tag:"Teasing", text:"Get them right to the edge of more… then make them ask for it. Nicely."},
-  {cat:"Foreplay", spice:2, pts:18, tag:"Massage", text:"Massage somewhere that isn't shoulders. Use your mouth for at least part of it."},
-  {cat:"Dare", spice:2, pts:18, tag:"Dirty talk", text:"Tell them exactly what you want to do to them next — in detail. Then pause the game one card."},
-
-  // ---- SPICY (3) ----
-  {cat:"Oral", spice:3, pts:35, tag:"Oral (give)", text:"Go down on them for three minutes. Bonus glory for every reaction you earn."},
-  {cat:"Position", spice:3, pts:30, tag:"Position play", text:"Choose a new position and hold it for one minute of teasing before anything more."},
-  {cat:"Tease", spice:3, pts:28, tag:"Toys", text:"Introduce a toy of their choosing. They pick where it starts."},
-  {cat:"Sensory", spice:3, pts:30, tag:"Sensory (ice/feather)", text:"Ice cube or feather — their pick — on three spots they don't expect."},
-  {cat:"Dare", spice:3, pts:30, tag:"Spanking", text:"One playful smack and a kiss to soothe it. Repeat only if they want more."},
-  {cat:"Roleplay", spice:3, pts:30, tag:"Roleplay", text:"60 seconds in character. You're strangers who 'shouldn't' be doing this."},
-  {cat:"Tease", spice:3, pts:28, tag:"Temperature", text:"A sip of something warm or cold, then a kiss. Let them feel the difference."},
-  {cat:"Position", spice:3, pts:32, tag:"Position play", text:"They lie back and don't move a muscle. You do all the work for two minutes."},
-  {cat:"Oral", spice:3, pts:32, tag:"Oral (receive)", text:"Lie back and receive. Your only job: tell them what's working."},
-
-  // ---- WILD (4) ----
-  {cat:"Quest", spice:4, pts:55, tag:"Oral (give)", text:"Royal decree: don't stop until you've earned at least one gasp AND one giggle."},
-  {cat:"Position", spice:4, pts:50, tag:"Position play", text:"Best-of-three: cycle through three positions, one minute each. Loser of the round gives a massage."},
-  {cat:"Dare", spice:4, pts:50, tag:"Light restraint", text:"Their wrists, your scarf, their consent. Tease the helpless royal for two minutes."},
-  {cat:"Quest", spice:4, pts:60, tag:"Teasing", text:"Edge them: bring them close, back off, three times. Then let them claim the throne."},
-  {cat:"Roleplay", spice:4, pts:50, tag:"Roleplay", text:"Conqueror & ruler. One of you 'surrenders the castle.' Negotiate the terms… physically."},
-  {cat:"Dare", spice:4, pts:48, tag:"Filthy photos", text:"Take one tasteful, ridiculous, only-for-them photo. Delete it together after the laugh."},
-  {cat:"Quest", spice:4, pts:58, tag:"Position play", text:"Your move entirely. Read them, chase every reaction, and go for the crown."},
-  {cat:"Wildcard", spice:4, pts:45, tag:"Risky/adventurous", text:"Pick the one thing on their 'curious to try' list you're both grinning about. Try it."},
+/* ===================================================================== *
+ * SECTION 3 — POSITIONS LIBRARY  (28)                                   *
+ * ===================================================================== */
+const POSITIONS = [
+  {name:"Spooning", tier:1, tags:["position_basic","position_intimate"], desc:"Both on your sides, one nestled behind the other. Close, warm, unhurried — the gateway to everything.", flavor:"Two crowns on one pillow."},
+  {name:"Missionary", tier:1, tags:["position_basic","position_intimate"], desc:"The classic, face to face. Eye contact does the heavy lifting here.", flavor:"The realm's most loyal standard."},
+  {name:"Lap Throne", tier:1, tags:["position_basic","position_intimate"], desc:"One sits, the other settles facing them on their lap. All embrace, all access, no rush.", flavor:"Take your seat upon the throne."},
+  {name:"Side Saddle", tier:1, tags:["position_basic"], desc:"Lying side by side, legs threaded together, hips meeting in the middle. Lazy and connected.", flavor:"Ride out at a gentle trot."},
+  {name:"The Recline", tier:1, tags:["position_basic","position_intimate"], desc:"One reclines against the headboard; the other leans back into their chest. Hands free to wander.", flavor:"Hold court from the high seat."},
+  {name:"Cowgirl", tier:2, tags:["position_basic","dominance"], desc:"One lies back; the other takes the top and sets the pace. The rider rules.", flavor:"Mount up — the rider holds the reins."},
+  {name:"Reverse Cowgirl", tier:2, tags:["position_athletic","dominance"], desc:"Same, facing away. A different view for the one beneath; full control for the one on top.", flavor:"Ride toward the horizon, crown held high."},
+  {name:"Doggy Style", tier:2, tags:["position_basic"], desc:"One on hands and knees, the other behind. Primal, hands-on, easy to add a little hair or hip.", flavor:"On all fours before the conqueror."},
+  {name:"The Chairman", tier:2, tags:["position_basic","position_intimate"], desc:"One sits on a sturdy chair's edge; the other straddles facing them. Great for slow grinding and kissing.", flavor:"Rule from the royal chair."},
+  {name:"Edge of the Bed", tier:2, tags:["position_basic"], desc:"One lies back at the bed's edge; the other stands or kneels to meet them. Perfect for taking turns.", flavor:"The drawbridge lowers."},
+  {name:"The Stargazer", tier:2, tags:["position_intimate"], desc:"One lies back, knees up; the other kneels close, leaning in. Deeply face-to-face.", flavor:"Read the night sky together."},
+  {name:"Standing Embrace", tier:3, tags:["position_athletic"], desc:"Upright, pressed against each other (a wall helps). Heat of the moment, can't-wait energy.", flavor:"Storm the gates, no patience left."},
+  {name:"The Pinned Wrists", tier:3, tags:["position_intimate","restraint","dominance"], desc:"Missionary, but one partner's wrists are gently held above their head. Consent makes it electric.", flavor:"The captured royal, willingly held."},
+  {name:"Spider", tier:3, tags:["position_athletic"], desc:"Both seated facing each other, leaning back on hands, legs interlaced. Slow, intimate, eye to eye.", flavor:"Two thrones, locked at the center."},
+  {name:"The Bridge", tier:3, tags:["position_intimate"], desc:"Missionary, but bodies shift up and rock rather than thrust. Built for the receiver's pleasure.", flavor:"Align the kingdoms; grind, don't gallop."},
+  {name:"Pretzel Dip", tier:3, tags:["position_athletic"], desc:"A side-lying tangle of legs — one over, one under. Deep angle, lots of skin contact.", flavor:"Knot the royal banners together."},
+  {name:"Cradle", tier:3, tags:["position_intimate","worship"], desc:"One sits cross-legged; the other sits in their lap, legs wrapped around, foreheads together. Tantric and slow.", flavor:"Cradle the crown jewels."},
+  {name:"The Tabletop", tier:3, tags:["position_athletic"], desc:"One lies back on a sturdy surface (bed edge, table); the other stands. Drama and control.", flavor:"Lay the feast upon the table."},
+  {name:"Reverse Recline", tier:3, tags:["position_athletic","dominance"], desc:"One on top facing away, leaning back onto the other's chest. Closeness with a wild view.", flavor:"Survey your lands while you rule."},
+  {name:"The Throne (Seated Straddle)", tier:3, tags:["position_intimate","dominance"], desc:"One sits upright on the bed; the other straddles and wraps around. Faces close, total control shared.", flavor:"Two rulers, one throne — share the seat."},
+  {name:"Standing Lift", tier:4, tags:["position_athletic"], desc:"One lifts the other, who wraps legs around. Strength, trust, and a lot of laughing. Use a wall.", flavor:"Carry your monarch across the threshold."},
+  {name:"The Wheelbarrow", tier:4, tags:["position_athletic","position_adventurous"], desc:"One supports the other's legs while they balance on their hands. Pure showing-off. Spotters encouraged.", flavor:"A daring royal acrobatic — net not included."},
+  {name:"The Bound Kneel", tier:4, tags:["restraint","submission","dominance"], desc:"One kneels, wrists loosely bound (a scarf, their yes); the other directs. Power play, fully negotiated.", flavor:"Kneel and await your sovereign's command."},
+  {name:"Blindfolded Surrender", tier:4, tags:["blindfold","submission","teasing"], desc:"Any base position, but the receiver is blindfolded and at the other's tender mercy. Sensation amplified.", flavor:"The blindfolded royal, at the realm's mercy."},
+  {name:"The Conqueror", tier:4, tags:["dominance","restraint"], desc:"One fully takes charge — pinning, directing, controlling the pace — by mutual decree.", flavor:"Plant the banner. The castle is yours."},
+  {name:"Mirror, Mirror", tier:4, tags:["mirror","position_adventurous"], desc:"Any position, performed where you can both watch. Voyeur thrill without leaving the room.", flavor:"Behold the realm's most flattering portrait."},
+  {name:"The Suspended Scissor", tier:4, tags:["position_athletic","position_adventurous"], desc:"An advanced side-tangle with one leg lifted high. Looks impossible, feels incredible. Stretch first.", flavor:"A position whispered of in legend."},
+  {name:"Sovereign's Choice", tier:4, tags:["position_adventurous"], desc:"Wild card: the active player picks ANY position from this library — or invents a new one and names it.", flavor:"Decree your own. History is written by rulers."},
 ];
 
-/* ---------- Reactions & scoring ---------- */
+/* ===================================================================== *
+ * SECTION 4 — SIX TAGGED DECKS                                          *
+ * ===================================================================== */
+const DECK_FOREPLAY = [
+  {deck:"foreplay",cat:"Foreplay",spice:1,pts:10,tags:["kissing"],text:"Kiss them somewhere you've never kissed them before. Hold it for twenty slow seconds."},
+  {deck:"foreplay",cat:"Tease",spice:1,pts:10,tags:["teasing"],text:"Trace one fingertip from the back of their neck all the way down their spine. Once. Slowly."},
+  {deck:"foreplay",cat:"Foreplay",spice:1,pts:12,tags:["massage"],text:"Two-minute neck and shoulder massage. With intent. No rushing toward anything."},
+  {deck:"foreplay",cat:"Tease",spice:1,pts:10,tags:["kissing","teasing"],text:"Make out like it's a stolen first kiss and someone might walk in. Hands stay above the waist. Sixty seconds."},
+  {deck:"foreplay",cat:"Tease",spice:1,pts:10,tags:["teasing"],text:"Give them a look so filthy it doesn't need a single word. Hold eye contact for fifteen seconds without laughing."},
+  {deck:"foreplay",cat:"Foreplay",spice:1,pts:12,tags:["kissing","worship"],text:"Pay a compliment to one part of their body — then kiss exactly that spot."},
+  {deck:"foreplay",cat:"Tease",spice:1,pts:12,tags:["striptease"],text:"Remove one item of their clothing — their pick which — as slowly as you possibly can."},
+  {deck:"foreplay",cat:"Foreplay",spice:2,pts:18,tags:["kissing","biting"],text:"Kiss a slow trail from their jaw, down the neck, to the collarbone. End with the gentlest bite."},
+  {deck:"foreplay",cat:"Tease",spice:2,pts:18,tags:["striptease","dirty_talk"],text:"Thirty-second striptease. They are not allowed to touch until you give the word."},
+  {deck:"foreplay",cat:"Tease",spice:2,pts:20,tags:["teasing","edging"],text:"Get them right to the edge of wanting more… then make them ask for it. Politely."},
+  {deck:"foreplay",cat:"Foreplay",spice:2,pts:18,tags:["massage","hands"],text:"Massage somewhere that isn't shoulders. Use your mouth for at least part of it."},
+  {deck:"foreplay",cat:"Dare",spice:2,pts:18,tags:["hands"],text:"Hands only, over the clothes, ninety seconds. Find the one spot that makes them inhale sharply, then live there."},
+  {deck:"foreplay",cat:"Tease",spice:2,pts:18,tags:["hair_pulling","kissing"],text:"A gentle fistful of hair and a deep, slow kiss. Read the reaction, then adjust."},
+  {deck:"foreplay",cat:"Foreplay",spice:2,pts:20,tags:["worship","kissing"],text:"Kiss your way down one arm to the fingertips like they're made of something rare."},
+  {deck:"foreplay",cat:"Tease",spice:2,pts:18,tags:["teasing","striptease"],text:"Undress them down to one last layer — and stop there. Admire the view out loud."},
+  {deck:"foreplay",cat:"Tease",spice:3,pts:30,tags:["teasing","edging","hands"],text:"Spend three full minutes building them up with hands and mouth — and stay one step short of more the whole time."},
+  {deck:"foreplay",cat:"Foreplay",spice:3,pts:30,tags:["kissing","worship"],text:"Kiss a slow path from their lips to their navel, narrating one thing you love at each stop."},
+  {deck:"foreplay",cat:"Tease",spice:3,pts:28,tags:["striptease","dirty_talk"],text:"Strip them the rest of the way, telling them exactly what you plan to do next as each piece comes off."},
+  {deck:"foreplay",cat:"Tease",spice:3,pts:32,tags:["teasing","oral_give"],text:"Tease with breath and lips just short of where they want you — for one whole minute — before giving in."},
+  {deck:"foreplay",cat:"Foreplay",spice:3,pts:30,tags:["hands","teasing"],text:"Lie behind them, arms wrapped around, and use only your hands to drive them slowly up the wall."},
+  {deck:"foreplay",cat:"Quest",spice:4,pts:50,tags:["edging","teasing"],text:"Edge them: build them right to the brink, then back off — three full times — before you let them have it."},
+  {deck:"foreplay",cat:"Quest",spice:4,pts:48,tags:["teasing","worship","oral_give"],text:"Twenty minutes of nothing but worship and teasing — no rushing to the finish. The destination can wait."},
+  {deck:"foreplay",cat:"Dare",spice:4,pts:50,tags:["restraint","teasing"],text:"Their wrists, your scarf, their enthusiastic yes. Tease the helpless royal for two minutes before mercy."},
+  {deck:"foreplay",cat:"Quest",spice:4,pts:48,tags:["dirty_talk","teasing"],text:"Narrate, out loud and in detail, everything you're about to do — then do it, slower than they want."},
+];
+const DECK_POSITIONS = [
+  {deck:"positions",cat:"Position",spice:2,pts:20,tags:["position_basic"],text:"Pick a position neither of you has tried tonight. Hold it for one full minute of teasing before anything more."},
+  {deck:"positions",cat:"Position",spice:2,pts:20,tags:["position_intimate"],text:"Slow-dance your way from standing into any position you like — no hands rushing it."},
+  {deck:"positions",cat:"Position",spice:3,pts:32,tags:["position_basic","dominance"],text:"They lie back and don't move a muscle. You do all the work, your pace, for two minutes."},
+  {deck:"positions",cat:"Position",spice:3,pts:30,tags:["position_athletic"],text:"Move through TWO positions back-to-back without breaking the kiss between them."},
+  {deck:"positions",cat:"Position",spice:3,pts:34,tags:["position_intimate","teasing"],text:"Get into your favorite position — then stay perfectly still in it, teasing, for sixty seconds."},
+  {deck:"positions",cat:"Quest",spice:4,pts:55,tags:["position_athletic","position_adventurous"],text:"Best of three: cycle through three positions, one minute each. Whoever taps out first owes a massage."},
+  {deck:"positions",cat:"Quest",spice:4,pts:58,tags:["position_adventurous","dominance"],text:"Active player's choice of ANY position in the Royal Codex — and you run it start to finish."},
+  {deck:"positions",cat:"Quest",spice:4,pts:50,tags:["position_athletic"],text:"Attempt one position you've both been laughing about. Falling over counts as a win if you're both grinning."},
+];
+const DECK_SENSORY = [
+  {deck:"sensory",cat:"Sensory",spice:1,pts:12,tags:["sensory_light"],text:"Close their eyes with your hand and kiss them somewhere they're not expecting."},
+  {deck:"sensory",cat:"Sensory",spice:1,pts:12,tags:["sensory_light","massage"],text:"Run your fingertips, feather-light, over their arms and back until you raise goosebumps."},
+  {deck:"sensory",cat:"Sensory",spice:1,pts:12,tags:["temperature"],text:"Warm your hands, then press them flat to the small of their back. Let them feel the heat sink in."},
+  {deck:"sensory",cat:"Sensory",spice:2,pts:18,tags:["blindfold","sensory_light"],text:"Blindfold them. Make them guess three textures you trace across their lips by feel alone."},
+  {deck:"sensory",cat:"Sensory",spice:2,pts:18,tags:["temperature"],text:"A sip of something warm or cold, then a kiss. Let them feel the difference on your tongue."},
+  {deck:"sensory",cat:"Sensory",spice:2,pts:20,tags:["blindfold","teasing"],text:"Blindfold on. Hover your mouth a breath away from their skin and move slowly — they can't tell where you'll land."},
+  {deck:"sensory",cat:"Sensory",spice:2,pts:18,tags:["scratching"],text:"Drag your nails, lightly, from their shoulders to the small of their back. Watch them arch."},
+  {deck:"sensory",cat:"Sensory",spice:2,pts:18,tags:["sensory_light","biting"],text:"Alternate three soft kisses with one feather-light graze of teeth. Repeat down the neck."},
+  {deck:"sensory",cat:"Sensory",spice:3,pts:30,tags:["temperature","sensory_light"],text:"Ice cube or feather — their pick — drawn slowly across three spots they'd never guess."},
+  {deck:"sensory",cat:"Sensory",spice:3,pts:30,tags:["blindfold","teasing","temperature"],text:"Blindfolded, they have to guess: warm or cold? Alternate, and make them work for the answer."},
+  {deck:"sensory",cat:"Sensory",spice:3,pts:30,tags:["spanking","sensory_light"],text:"One light, playful smack — then soothe the same spot with a warm, slow kiss. Repeat only if they want more."},
+  {deck:"sensory",cat:"Sensory",spice:3,pts:32,tags:["blindfold","oral_give"],text:"They stay blindfolded while you go down on them. Every other sense turned up to eleven."},
+  {deck:"sensory",cat:"Sensory",spice:3,pts:28,tags:["scratching","hair_pulling"],text:"Nails down the back on the way in, a fistful of hair on the way up. Find the rhythm they love."},
+  {deck:"sensory",cat:"Sensory",spice:3,pts:30,tags:["temperature","food_play"],text:"One bite of something cold and sweet, shared mouth to mouth. No hands."},
+  {deck:"sensory",cat:"Quest",spice:4,pts:50,tags:["blindfold","restraint","teasing"],text:"Blindfolded AND wrists loosely held. Spend two minutes giving them sensations they can't predict or escape."},
+  {deck:"sensory",cat:"Quest",spice:4,pts:48,tags:["temperature","blindfold"],text:"A full sensory gauntlet: warm, then cold, then feather, then mouth — blindfolded, in an order they can't see coming."},
+  {deck:"sensory",cat:"Dare",spice:4,pts:50,tags:["spanking","dominance"],text:"They count each smack out loud, and thank the crown after each. Stop the instant they want to stop."},
+  {deck:"sensory",cat:"Quest",spice:4,pts:48,tags:["blindfold","oral_receive","edging"],text:"Blindfolded and on the receiving end — they bring you close, back off, and make you guess how near you got."},
+];
+const DECK_TRUTH = [
+  {deck:"truth",cat:"Truth",spice:1,pts:10,tags:["dirty_talk"],text:"Confession: describe, out loud, your single favorite thing they do to you."},
+  {deck:"truth",cat:"Truth",spice:1,pts:10,tags:["dirty_talk"],text:"What were you thinking the first time you were ever attracted to them? Tell the truth."},
+  {deck:"truth",cat:"Truth",spice:1,pts:10,tags:[],text:"Name the most attractive thing they did this week without even trying."},
+  {deck:"truth",cat:"Truth",spice:1,pts:12,tags:["dirty_talk"],text:"Finish the sentence honestly: 'The thing I think about way more than I admit is…'"},
+  {deck:"truth",cat:"Truth",spice:1,pts:10,tags:[],text:"Describe your ideal lazy morning with them, in detail, knowing how it would probably end."},
+  {deck:"truth",cat:"Confession",spice:2,pts:18,tags:["dirty_talk"],text:"Tell them, out loud, exactly what you'd want to do to them right now if there were no rules. Then pause the game one card."},
+  {deck:"truth",cat:"Confession",spice:2,pts:18,tags:["dirty_talk"],text:"What's a place you've fantasized about doing this that you've never said out loud?"},
+  {deck:"truth",cat:"Truth",spice:2,pts:18,tags:["dirty_talk"],text:"Rate, one to ten, how badly you want them this exact second — and explain the number."},
+  {deck:"truth",cat:"Confession",spice:2,pts:20,tags:["dirty_talk","roleplay"],text:"Describe a character or scenario you've secretly wanted to play out with them."},
+  {deck:"truth",cat:"Truth",spice:2,pts:18,tags:["dirty_talk"],text:"What's the most memorable time you two ever had together? Walk them through it, beat by beat."},
+  {deck:"truth",cat:"Confession",spice:2,pts:18,tags:["dirty_talk"],text:"Tell them one thing on your wish list you've been too shy to ask for — until right now."},
+  {deck:"truth",cat:"Confession",spice:3,pts:28,tags:["dirty_talk"],text:"Whisper the dirtiest complete sentence you can think of into their ear — then act like you said nothing."},
+  {deck:"truth",cat:"Confession",spice:3,pts:30,tags:["dirty_talk"],text:"Describe, in real detail, a fantasy you'd genuinely like to try with them. Watch their face the whole time."},
+  {deck:"truth",cat:"Truth",spice:3,pts:28,tags:["dirty_talk"],text:"Tell them the exact moment tonight you started wanting them — and what they were doing."},
+  {deck:"truth",cat:"Confession",spice:3,pts:30,tags:["dirty_talk","dominance","submission"],text:"Confess: do you want to be in charge tonight, or be told what to do? Say it out loud and own it."},
+  {deck:"truth",cat:"Confession",spice:3,pts:28,tags:["dirty_talk"],text:"Describe their body to them the way you'd describe it to your own diary. Hold nothing back."},
+  {deck:"truth",cat:"Quest",spice:4,pts:48,tags:["dirty_talk"],text:"Trade your single boldest fantasy with each other — out loud, no editing — then pick the one you'll actually try tonight."},
+  {deck:"truth",cat:"Confession",spice:4,pts:45,tags:["dirty_talk"],text:"Narrate, in the present tense, exactly what you want to be happening five minutes from now. Then make it true."},
+  {deck:"truth",cat:"Quest",spice:4,pts:48,tags:["dirty_talk","dominance","submission"],text:"Each name one command you'd love to give and one you'd love to obey. Then act out whichever pair you both said yes to."},
+  {deck:"truth",cat:"Confession",spice:4,pts:46,tags:["dirty_talk","roleplay"],text:"Pitch a full scene — who you both are, where, and what happens. If you're both grinning by the end, play it out."},
+];
+const DECK_QUESTS = [
+  {deck:"quests",cat:"Quest",spice:2,pts:22,tags:["teasing","kissing"],text:"Three-stop quest: a kiss on the mouth, one on the neck, one anywhere you choose — thirty seconds each, no skipping ahead."},
+  {deck:"quests",cat:"Quest",spice:2,pts:22,tags:["teasing","hands","striptease"],text:"Remove one layer, deliver one compliment, plant one kiss. Repeat the cycle three times, slower each round."},
+  {deck:"quests",cat:"Quest",spice:3,pts:32,tags:["oral_give","teasing"],text:"Go down on them for three minutes. Bonus glory for every distinct reaction you earn along the way."},
+  {deck:"quests",cat:"Quest",spice:3,pts:30,tags:["teasing","edging"],text:"The Slow Burn: ten minutes, and you're not allowed to let them finish. Build, retreat, build again."},
+  {deck:"quests",cat:"Quest",spice:3,pts:34,tags:["dominance","position_basic"],text:"Take full control for the next two cards. They follow your lead, your pace, no negotiating — until you say otherwise."},
+  {deck:"quests",cat:"Quest",spice:3,pts:32,tags:["roleplay","teasing"],text:"Sixty seconds fully in character: you're two strangers who absolutely should not be doing this. Commit to the accent."},
+  {deck:"quests",cat:"Quest",spice:3,pts:30,tags:["worship","oral_give","kissing"],text:"Worship quest: kiss, compliment, or attend to five different parts of them before you're allowed to move on."},
+  {deck:"quests",cat:"Quest",spice:4,pts:55,tags:["oral_give","teasing","edging"],text:"Royal decree: don't stop until you've earned at least one gasp AND one helpless giggle. No surrender."},
+  {deck:"quests",cat:"Quest",spice:4,pts:58,tags:["edging","oral_receive"],text:"Edge quest: bring them close, back off, three times — then let them claim the throne however they like."},
+  {deck:"quests",cat:"Quest",spice:4,pts:55,tags:["roleplay","dominance","restraint"],text:"Conqueror & ruler: one of you surrenders the castle. Negotiate the terms of surrender… entirely with your bodies."},
+  {deck:"quests",cat:"Quest",spice:4,pts:60,tags:["position_athletic","position_adventurous","dominance"],text:"The Grand Tour: three positions, one minute each, no breaks. Finish wherever you both want to end up."},
+  {deck:"quests",cat:"Quest",spice:4,pts:55,tags:["dominance","submission","dirty_talk"],text:"Total surrender: one of you does exactly as told for the next five minutes. The other had better make it worth obeying."},
+  {deck:"quests",cat:"Quest",spice:4,pts:58,tags:["blindfold","restraint","teasing","edging"],text:"The Captive: blindfolded, loosely bound, completely at your mercy for three minutes. Tease like the realm depends on it."},
+  {deck:"quests",cat:"Quest",spice:3,pts:30,tags:["massage","worship","teasing"],text:"Full-body massage that 'accidentally' keeps wandering. You're not allowed to admit where it's heading."},
+];
+const DECK_WILDCARDS = [
+  {deck:"wildcards",cat:"Wildcard",spice:1,pts:12,tags:[],text:"Swap one thing each: tell your partner one thing to do to you, and do one thing they ask. Dealer's choice."},
+  {deck:"wildcards",cat:"Wildcard",spice:1,pts:12,tags:["kissing"],text:"Sixty-second kiss. The catch: neither of you may use your hands the entire time."},
+  {deck:"wildcards",cat:"Wildcard",spice:1,pts:10,tags:["striptease"],text:"Rock-paper-scissors. Loser loses a layer. Best of three."},
+  {deck:"wildcards",cat:"Wildcard",spice:2,pts:18,tags:["teasing"],text:"Set a two-minute timer. Until it goes off, you may tease anywhere — but no kissing on the mouth. Make them miss it."},
+  {deck:"wildcards",cat:"Wildcard",spice:2,pts:20,tags:["dominance","submission"],text:"Coin flip. Heads, you're in charge for the next two cards; tails, they are. Loser of the flip obeys, grinning."},
+  {deck:"wildcards",cat:"Wildcard",spice:2,pts:18,tags:["dirty_talk","photos"],text:"Send them one outrageous text from across the room. They have to read it with a straight face."},
+  {deck:"wildcards",cat:"Wildcard",spice:2,pts:18,tags:["outfit","striptease"],text:"They get sixty seconds to put on (or take off) one thing of their choosing. You wait, and you watch."},
+  {deck:"wildcards",cat:"Wildcard",spice:3,pts:30,tags:[],text:"Open quest: pick the one thing off your partner's 'curious to try' list you're both grinning about — and try it now."},
+  {deck:"wildcards",cat:"Wildcard",spice:3,pts:30,tags:["mirror"],text:"Relocate. Do the next thing somewhere you can both watch — a mirror, a reflection, anywhere with a view."},
+  {deck:"wildcards",cat:"Wildcard",spice:3,pts:28,tags:["toys"],text:"Introduce a toy of their choosing. They decide where it starts; you decide where it goes."},
+  {deck:"wildcards",cat:"Wildcard",spice:3,pts:32,tags:["dominance","teasing"],text:"You're a genie. They get three wishes. You may grant — or tease and delay — each one as you see fit."},
+  {deck:"wildcards",cat:"Wildcard",spice:3,pts:30,tags:["food_play","temperature"],text:"Bring one thing from the kitchen. Cold, sweet, or both. Use it tastefully and creatively."},
+  {deck:"wildcards",cat:"Wildcard",spice:4,pts:48,tags:["photos"],text:"Take one tasteful, ridiculous, only-for-the-two-of-you photo. Laugh, then delete it together on the spot."},
+  {deck:"wildcards",cat:"Wildcard",spice:4,pts:50,tags:["position_adventurous"],text:"Dealer's wild: each of you names one thing from your fantasy list. Flip a coin for which one you do first."},
+];
+const ALL_DECKS = [
+  ...DECK_FOREPLAY, ...DECK_POSITIONS, ...DECK_SENSORY,
+  ...DECK_TRUTH, ...DECK_QUESTS, ...DECK_WILDCARDS
+];
+const DECKS_BY_NAME = {
+  foreplay:DECK_FOREPLAY, positions:DECK_POSITIONS, sensory:DECK_SENSORY,
+  truth:DECK_TRUTH, quests:DECK_QUESTS, wildcards:DECK_WILDCARDS
+};
+
+/* ===================================================================== *
+ * SECTION 5 — REACTIONS, LEVELS, ACHIEVEMENTS                            *
+ * ===================================================================== */
 const REACTIONS = [
-  {key:"giggle", emoji:"😄", label:"Giggle", pts:5,  msg:"The court is amused! +5"},
-  {key:"gasp",   emoji:"😮", label:"Gasp / Moan", pts:12, msg:"A royal gasp! +12"},
-  {key:"scream", emoji:"🔥", label:"Scream", pts:20, msg:"The whole kingdom heard that! +20"},
-  {key:"climax", emoji:"👑", label:"Claim the Throne", pts:60, msg:"👑 THE THRONE IS CLAIMED! +60"},
+  {key:"giggle", emoji:"😄", label:"Giggle", pts:5,  heat:5},
+  {key:"gasp",   emoji:"😮", label:"Gasp / Moan", pts:12, heat:12},
+  {key:"scream", emoji:"🔥", label:"Scream", pts:20, heat:20},
+  {key:"climax", emoji:"👑", label:"Claim the Throne", pts:60, heat:40},
 ];
-
-/* ---------- Levels / titles ---------- */
 const LEVELS = [
   {min:0,   t:"Peasant"}, {min:40,  t:"Squire"}, {min:100, t:"Knight"},
   {min:180, t:"Baron"},   {min:280, t:"Duke"},   {min:400, t:"Royal Consort"},
   {min:560, t:"Sovereign of the Sheets"},
 ];
 function levelFor(p){ let r=LEVELS[0]; for(const l of LEVELS){ if(p>=l.min) r=l; } return r; }
-function nextLevel(p){ for(const l of LEVELS){ if(p<l.min) return l; } return null; }
-
-/* ---------- Achievements ---------- */
 const ACHS = [
   {id:"first", ic:"⚔️", t:"First Blood", d:"Completed your first quest."},
   {id:"jester", ic:"🃏", t:"Court Jester", d:"Earned 3 giggles."},
@@ -223,47 +504,341 @@ const ACHS = [
   {id:"coronation", ic:"👑", t:"Coronation", d:"Claimed the throne for the first time."},
   {id:"loud", ic:"📣", t:"Heard in the Realm", d:"Earned a scream."},
   {id:"comeback", ic:"🛡️", t:"Royal Comeback", d:"Took the lead after trailing by 50+."},
+  {id:"lucky", ic:"🍀", t:"Lady Luck", d:"Won a Double-or-Nothing on a Wild card."},
+  {id:"aligned", ic:"🤝", t:"Aligned Reign", d:"Both voted the same every round (Conquest)."},
+  {id:"coauthor", ic:"📜", t:"Co-Authors", d:"Completed a Campaign Finale together."},
+  {id:"fullhouse", ic:"🎴", t:"Full House", d:"All four reaction types in one game."},
+  {id:"marathon", ic:"🏰", t:"The Long Reign", d:"20+ cards in a single session."},
 ];
 
-/* ---------- State ---------- */
+/* ===================================================================== *
+ * SECTION 6 — STATE                                                     *
+ * ===================================================================== */
 const BLANK = ()=>({
-  players:[], setup:{idx:0},
-  game:{ mode:null, turn:0, card:null, drawn:[], reactions:{}, phase:0, phaseCount:0, achievements:[], log:[] }
+  rev:0, hostId:null,
+  players:[null,null],
+  setup:{idx:0},
+  game:{ mode:null, turn:0, card:null, drawn:[], reactions:{},
+    achievements:[], reactSeen:{}, cardCount:0, _giggles:0, _wasBehind:false, paused:false,
+    quick:null, campaign:null, roulette:null, positions:null }
 });
-let S = load() || BLANK();
+let S = loadLocal() || BLANK();
+if(!Array.isArray(S.players)) S.players=[null,null];
+while(S.players.length<2) S.players.push(null);
 
-function save(){ localStorage.setItem("sexcalibur", JSON.stringify(S)); }
-function load(){ try{ return JSON.parse(localStorage.getItem("sexcalibur")); }catch(e){ return null; } }
-function reset(){ if(confirm("Burn it all down and start a new reign? Profiles & scores erased.")){ S=BLANK(); save(); route("splash"); } }
+function loadLocal(){ try{ return JSON.parse(localStorage.getItem("sexcalibur_v2")); }catch(e){ return null; } }
+function saveLocal(){ try{ localStorage.setItem("sexcalibur_v2", JSON.stringify(S)); }catch(e){} }
 
-/* ---------- Helpers ---------- */
-const $ = (h)=>{ const d=document.createElement("div"); d.innerHTML=h.trim(); return d.firstChild; };
-const app = ()=>document.getElementById("app");
-function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-let toastT;
-function toast(msg){
-  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
-  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"), 1900);
+/* The ONE write path. In single-device mode = local save + render.
+   In room mode = optimistic local + compare-and-set server write. */
+function mutate(fn){
+  try{ fn(S); }catch(e){ console.error("mutate fn error",e); }
+  S.rev = (S.rev||0) + 1;
+  if(ROOM.code){ ROOM.rev = S.rev; pushRemote(); }
+  else { saveLocal(); }
+  render();
 }
-const SPICE_LBL = ["","Mild 🙂","Medium 😏","Spicy 🌶️","Wild 🔥"];
+/* read-only local change (no sync), e.g. UI-only transient */
+function commit(){ if(ROOM.code){ ROOM.rev=S.rev; pushRemote(); } else saveLocal(); }
 
-/* ---------- Router ---------- */
-function route(name){
-  window.scrollTo(0,0);
-  const r = SCREENS[name] || SCREENS.splash;
-  app().innerHTML="";
-  app().appendChild(r());
-  // safeword on game screens
-  document.querySelectorAll(".safeword").forEach(e=>e.remove());
-  if(name==="play"){
-    const sw=$(`<div class="safeword">🛑 Safeword — pause</div>`);
-    sw.onclick=()=>{ if(confirm("Pause the game? Nothing is scored. Resume whenever you're both ready.")) route("home"); };
-    document.body.appendChild(sw);
+function reset(){
+  if(confirm("Burn it all down and start a new reign? Profiles & scores erased.")){
+    leaveRoom();
+    S=BLANK(); saveLocal(); route("splash");
   }
 }
 
-/* =========================== SCREENS =========================== */
-const SCREENS = {};
+/* ===================================================================== *
+ * SECTION 7 — HELPERS                                                   *
+ * ===================================================================== */
+const $ = (h)=>{ const d=document.createElement("div"); d.innerHTML=h.trim(); return d.firstChild; };
+const app = ()=>document.getElementById("app");
+function esc(s){ return (s==null?"":(""+s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+let toastT;
+function toast(msg){
+  const t=document.getElementById("toast"); if(!t)return; t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"), 2100);
+}
+const SPICE_LBL = ["","Mild 🙂","Medium 😏","Spicy 🌶️","Wild 🔥"];
+const rand = (arr)=> arr.length ? arr[Math.floor(Math.random()*arr.length)] : null;
+const clamp = (n,lo,hi)=> Math.max(lo, Math.min(hi, n));
+
+/* label -> canonical tags, for a given group */
+function tagsOf(labels, group){
+  const src = SET_OF[group]; const set=new Set();
+  (labels||[]).forEach(label=>{ const o=src.find(x=>x.label===label); if(o) o.t.forEach(t=>set.add(t)); });
+  return set;
+}
+function limitTagsOf(player){ return tagsOf(player&&player.limits, "limits"); }
+/* union of BOTH players' hard limits — the absolute lockout set */
+function lockoutSet(){
+  const out=new Set();
+  S.players.forEach(p=>{ if(p) limitTagsOf(p).forEach(t=>out.add(t)); });
+  return out;
+}
+function spiceCeiling(){
+  const a=S.players[0], b=S.players[1];
+  const sa = a?a.spice:4, sb=b?b.spice:4;
+  return Math.min(sa, sb);
+}
+
+/* ===================================================================== *
+ * SECTION 8 — CARD ENGINE  (array-aware filtering + weighting)          *
+ * ===================================================================== */
+function activePlayer(){ return S.players[S.game.turn]; }
+function passivePlayer(){ return S.players[S.game.turn^1]; }
+
+/* which decks a mode pulls from, optionally constrained by campaign phase */
+function deckPoolForMode(){
+  const m=S.game.mode;
+  if(m==="campaign"){
+    const act=S.game.campaign?S.game.campaign.act:0;
+    const map=[
+      ["foreplay","truth"],            // Act I — The Summons
+      ["sensory","positions","truth"], // Act II — Exploration
+      ["positions","quests","sensory"],// Act III — The Siege
+      ["quests","wildcards","positions"]// Act IV — Coronation
+    ];
+    const names=map[clamp(act,0,3)];
+    return names.flatMap(n=>DECKS_BY_NAME[n]);
+  }
+  if(m==="truthdare"){ return ALL_DECKS; } // handled specially in draw
+  return ALL_DECKS; // quick, roulette: whole library
+}
+
+/* spice band a mode is allowed to draw this turn (never above ceiling) */
+function spiceBandForMode(reelSpice){
+  const ceil = spiceCeiling();
+  if(S.game.mode==="campaign"){
+    const act=S.game.campaign?S.game.campaign.act:0;
+    const bands=[[1,1],[1,2],[2,3],[3,4]];
+    const [lo,hi]=bands[clamp(act,0,3)];
+    return {lo, hi:Math.min(hi,ceil)};
+  }
+  if(S.game.mode==="roulette" && reelSpice){
+    const s=Math.min(reelSpice,ceil); return {lo:s, hi:s};
+  }
+  if(S.game.mode==="quick"){ return {lo:1, hi:ceil}; }
+  return {lo:1, hi:ceil};
+}
+
+/* core eligible-cards builder. opts: {deckNames, band, allowDrawn} */
+function eligibleCards(opts){
+  opts = opts||{};
+  const receiver=passivePlayer(), actor=activePlayer();
+  const lock = lockoutSet();
+  const band = opts.band || {lo:1, hi:spiceCeiling()};
+  let basePool = opts.deckNames ? opts.deckNames.flatMap(n=>DECKS_BY_NAME[n]||[]) : deckPoolForMode();
+
+  const filt = (allowDrawn)=> basePool.filter(c=>{
+    if(c.spice<band.lo || c.spice>band.hi) return false;
+    if(c.tags.some(t=>lock.has(t))) return false;            // HARD LIMIT lockout (both players)
+    if(!allowDrawn && S.game.drawn.includes(c.text)) return false;
+    return true;
+  });
+
+  let pool = filt(false);
+  if(!pool.length) pool = filt(true);   // exhausted → allow repeats, limits still honored
+  if(!pool.length){
+    // last-resort widen the band down to 1 (still under ceiling, still limit-safe)
+    pool = basePool.filter(c=> c.spice<=band.hi && !c.tags.some(t=>lock.has(t)));
+  }
+  return weightPool(pool, receiver, actor);
+}
+
+function weightPool(pool, receiver, actor){
+  if(!pool.length) return [];
+  const recvLikes = tagsOf(receiver&&receiver.receive, "receive");
+  const recvSens  = tagsOf(receiver&&receiver.sensations, "sensations");
+  const actorGive = tagsOf(actor&&actor.give, "give");
+  const recvCurio = tagsOf(receiver&&receiver.curious, "curious");
+  const actorCurio= tagsOf(actor&&actor.curious, "curious");
+  const recvRole  = tagsOf(receiver&&receiver.roleplay, "roleplay");
+  const weighted=[];
+  pool.forEach(c=>{
+    let w=1;
+    if(c.tags.some(t=>recvLikes.has(t))) w+=3;
+    if(c.tags.some(t=>recvSens.has(t)))  w+=2;
+    if(c.tags.some(t=>actorGive.has(t))) w+=2;
+    if(c.tags.some(t=>recvRole.has(t)))  w+=1;
+    if(c.spice===4 && c.tags.some(t=>recvCurio.has(t)||actorCurio.has(t))) w+=4;
+    w=Math.min(w,9);
+    for(let i=0;i<w;i++) weighted.push(c);
+  });
+  return weighted.length?weighted:pool;
+}
+
+/* position challenge generator */
+function drawPositionCard(band){
+  const lock=lockoutSet();
+  const lo=(band&&band.lo)||1, hi=(band&&band.hi)||spiceCeiling();
+  let ok = POSITIONS.filter(p=> p.tier>=lo && p.tier<=hi && !p.tags.some(t=>lock.has(t)));
+  if(!ok.length) ok = POSITIONS.filter(p=> p.tier<=hi && !p.tags.some(t=>lock.has(t)));
+  if(!ok.length) return null;
+  const receiver=passivePlayer();
+  const recvCurio=tagsOf(receiver&&receiver.curious,"curious");
+  const weighted=[];
+  ok.forEach(p=>{ let w=1; if(p.tags.some(t=>recvCurio.has(t))) w+=3; for(let i=0;i<w;i++) weighted.push(p); });
+  const P=rand(weighted);
+  const verb=[,"Settle in and stay here a while — no rush to move on.",
+              "Hold it for a full minute before you're allowed to speed up.",
+              "Tease in this position for ninety seconds before anything more.",
+              "Royal decree: don't leave this position until you've earned at least one gasp."][P.tier];
+  return { deck:"positions", cat:"Position Challenge", spice:P.tier,
+    pts:[,12,20,32,55][P.tier], tags:P.tags,
+    text:`${P.name} — ${P.desc} ${verb}`, position:P.name, flavor:P.flavor };
+}
+
+/* set the current card into S.game; returns the card (or null) */
+function drawCardInto(s, card){
+  s.game.card = card || null;
+  s.game.reactions = {};
+  if(card && card.text && !s.game.drawn.includes(card.text)) s.game.drawn.push(card.text);
+  return card;
+}
+
+/* mode-aware single draw (used by quick / campaign defaults) */
+function drawForMode(s){
+  const m=s.game.mode;
+  if(m==="quick"){
+    // dares-flavored: foreplay/wildcards/sensory + occasional truth, biased low
+    const names=["foreplay","wildcards","sensory","truth"];
+    const band=spiceBandForMode();
+    const pool=eligibleCards({deckNames:names, band:{lo:1, hi:band.hi}});
+    return drawCardInto(s, rand(pool));
+  }
+  if(m==="campaign"){
+    const band=spiceBandForMode();
+    const act=s.game.campaign?s.game.campaign.act:0;
+    // Siege/Coronation get a chance at a generated position
+    if(act>=2 && Math.random()<0.4){
+      const pc=drawPositionCard(band);
+      if(pc) return drawCardInto(s, pc);
+    }
+    const pool=eligibleCards({band});
+    return drawCardInto(s, rand(pool));
+  }
+  // generic
+  const pool=eligibleCards({});
+  return drawCardInto(s, rand(pool));
+}
+
+/* ===================================================================== *
+ * SECTION 9 — ROOM SYNC LAYER (Supabase, optional)                      *
+ * ===================================================================== */
+const CFG = window.SXC_CONFIG||{};
+const SYNC_ENABLED = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase);
+let sb=null;
+if(SYNC_ENABLED){
+  try{ sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY,
+        { realtime:{ params:{ eventsPerSecond:5 } } }); }
+  catch(e){ console.error("supabase init failed",e); }
+}
+const DEVICE_ID = (()=>{ let id=localStorage.getItem("sxc_device");
+  if(!id){ id=(crypto.randomUUID?crypto.randomUUID():("d"+Math.random().toString(36).slice(2)+Date.now())); localStorage.setItem("sxc_device",id);} return id; })();
+const CODE_ALPHABET="ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const newCode=()=>Array.from({length:6},()=>CODE_ALPHABET[Math.floor(Math.random()*CODE_ALPHABET.length)]).join("");
+
+const ROOM = { code:null, role:null, rev:-1, channel:null, poll:null, live:false };
+
+function roomActive(){ return !!(sb && ROOM.code); }
+function mySlot(){ return ROOM.role==="guest" ? 1 : 0; }
+function myTurn(){ return !roomActive() ? true : S.game.turn===mySlot(); }
+
+async function createRoom(){
+  if(!sb) throw new Error("Sync not configured");
+  const seed=BLANK(); seed.hostId=DEVICE_ID; seed.rev=0;
+  for(let i=0;i<5;i++){
+    const code=newCode();
+    const { error } = await sb.from("rooms").insert({ code, host_id:DEVICE_ID, rev:0, state:seed });
+    if(!error){ ROOM.code=code; ROOM.role="host"; ROOM.rev=0; S=seed; subscribe(code); return code; }
+    if(error.code!=="23505") throw error;
+  }
+  throw new Error("Could not allocate a room code, try again.");
+}
+async function joinRoom(rawCode){
+  if(!sb) throw new Error("Sync not configured");
+  const code=(rawCode||"").trim().toUpperCase();
+  if(code.length!==6) { toast("A room code is 6 characters."); return false; }
+  const { data, error } = await sb.rpc("join_room", { p_code:code, p_guest:DEVICE_ID });
+  if(error){ console.error(error); toast("Couldn't reach the realm. Check connection."); return false; }
+  if(!data){ toast("No such room — check the code, or it may have expired."); return false; }
+  ROOM.code=code; ROOM.role= (data.host_id===DEVICE_ID)?"host":"guest";
+  applyRemote(data.state, data.rev); subscribe(code);
+  return true;
+}
+function subscribe(code){
+  if(!sb) return;
+  try{
+    ROOM.channel = sb.channel(`room:${code}`)
+      .on("postgres_changes",
+        { event:"UPDATE", schema:"public", table:"rooms", filter:`code=eq.${code}` },
+        payload=> applyRemote(payload.new.state, payload.new.rev))
+      .subscribe((status)=>{ ROOM.live = (status==="SUBSCRIBED"); render(); });
+  }catch(e){ console.error("subscribe failed",e); }
+  if(ROOM.poll) clearInterval(ROOM.poll);
+  ROOM.poll=setInterval(pollOnce, 2500);
+}
+async function pollOnce(){
+  if(!roomActive()) return;
+  try{ const { data } = await sb.rpc("get_room", { p_code:ROOM.code }); if(data) applyRemote(data.state, data.rev); }
+  catch(e){ /* offline tolerance */ }
+}
+function applyRemote(state, rev){
+  if(rev==null || rev<=ROOM.rev) return;     // ignore stale / our own echo
+  ROOM.rev=rev; S=state;
+  if(!Array.isArray(S.players)) S.players=[null,null];
+  while(S.players.length<2) S.players.push(null);
+  render();
+}
+async function pushRemote(){
+  if(!roomActive()) return;
+  const myRev=S.rev;
+  try{
+    const { data, error } = await sb.from("rooms")
+      .update({ state:S, rev:myRev })
+      .eq("code", ROOM.code).lt("rev", myRev).select().maybeSingle();
+    if(error){ toast("Sync hiccup — retrying"); return pollOnce(); }
+    if(!data){ return pollOnce(); }  // lost the race → re-pull truth
+    // opportunistic TTL bump
+    sb.rpc("bump_expiry",{p_code:ROOM.code}).then(()=>{},()=>{});
+  }catch(e){ pollOnce(); }
+}
+function leaveRoom(){
+  if(ROOM.channel){ try{ sb.removeChannel(ROOM.channel); }catch(e){} ROOM.channel=null; }
+  if(ROOM.poll){ clearInterval(ROOM.poll); ROOM.poll=null; }
+  ROOM.code=null; ROOM.role=null; ROOM.rev=-1; ROOM.live=false;
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") pollOnce(); });
+
+/* ===================================================================== *
+ * SECTION 10 — ROUTER                                                   *
+ * ===================================================================== */
+let CURRENT="splash";
+function route(name){ CURRENT=name; window.scrollTo(0,0); render(); }
+function render(){
+  const r = SCREENS[CURRENT] || SCREENS.splash;
+  const a=app(); if(!a) return;
+  a.innerHTML="";
+  let node;
+  try{ node=r(); }catch(e){ console.error("screen render error",e); node=$(`<div class="screen center"><div class="crown">👑</div><p class="muted">Something hiccuped. Returning to the Throne Room.</p><button class="btn" onclick="route('home')">Back</button></div>`); }
+  a.appendChild(node);
+  // floating safeword on any play surface
+  document.querySelectorAll(".safeword").forEach(e=>e.remove());
+  const PLAYISH=["play","quickplay","rouletteplay","conquest","campaignplay","quickheat","quicktruth","campaignreact","roulettereact"];
+  if(PLAYISH.includes(CURRENT)){
+    const sw=$(`<div class="safeword">🛑 Safeword — pause</div>`);
+    sw.onclick=()=>{ if(confirm("Pause the game? Nothing is scored. Resume whenever you're both ready.")){ stopQuickTimer(); route("home"); } };
+    document.body.appendChild(sw);
+  } else { stopQuickTimer(); }
+}
+
+/* ===================================================================== *
+ * SECTION 11 — SCREENS                                                  *
+ * ===================================================================== */
+const SCREENS={};
+
+function bothReady(){ return S.players[0] && S.players[1]; }
 
 SCREENS.splash = ()=>{
   const wrap=$(`<div class="screen center">
@@ -283,80 +858,163 @@ SCREENS.splash = ()=>{
         <span style="font-weight:600">We're both 18+, into it, and consenting. 🔥</span></label>
       <button class="btn" id="enter" disabled>Enter the Realm</button>
     </div>
-    <div class="footer">Made as a (much, much better) gift. Everything stays on this device — no accounts, no cloud, no snooping.</div>
+    <div class="footer">Everything stays on your device. Two-device play (optional) syncs only the game, only between your two phones.</div>
   </div>`);
   wrap.querySelector("#ageok").onchange=e=>{ wrap.querySelector("#enter").disabled=!e.target.checked; };
   wrap.querySelector("#enter").onclick=()=>{
-    if(S.players.length>=2) route("home");
-    else { S.setup.idx=0; save(); route("setup"); }
+    if(bothReady()) route("home");
+    else if(SYNC_ENABLED) route("lobby");
+    else { S.setup.idx=0; saveLocal(); route("setup"); }
   };
   return wrap;
 };
 
+/* ---- LOBBY (only shown if sync configured) ---- */
+SCREENS.lobby = ()=>{
+  const wrap=$(`<div class="screen center">
+    <div style="height:10px"></div>
+    <div class="crown">👑</div>
+    <div class="title" style="font-size:30px">How will you play?</div>
+    <div style="height:20px"></div>
+    <div class="panel" style="text-align:left">
+      <h3 class="serif" style="color:var(--gold)">📲 Same phone</h3>
+      <p class="small">Classic pass-and-play. Keep one phone between you and pass it each turn.</p>
+      <button class="btn" id="local">Play on this phone</button>
+    </div>
+    <div class="panel" style="text-align:left">
+      <h3 class="serif" style="color:var(--rose2)">📡 Two phones</h3>
+      <p class="small">Each of you on your own phone, in sync. One creates a room, the other joins with the code.</p>
+      <button class="btn rose" id="create">Create a room</button>
+      <button class="btn ghost" id="join">Join with a code</button>
+    </div>
+    <div class="footer">Two-device rooms self-destruct after ${esc(CFG.ROOM_TTL_HOURS||12)} hours.</div>
+  </div>`);
+  wrap.querySelector("#local").onclick=()=>{ S.setup.idx=0; saveLocal(); route("setup"); };
+  wrap.querySelector("#create").onclick=async()=>{
+    toast("Forging a room…");
+    try{ await createRoom(); route("share"); }
+    catch(e){ console.error(e); toast("Couldn't create a room. Check Supabase setup."); }
+  };
+  wrap.querySelector("#join").onclick=()=>route("joincode");
+  return wrap;
+};
+
+SCREENS.share = ()=>{
+  const link = location.origin + location.pathname + "#JOIN-" + (ROOM.code||"");
+  const guestHere = S.players[1];
+  const wrap=$(`<div class="screen center">
+    <div style="height:10px"></div>
+    <div class="crown">👑</div>
+    <h2 class="serif" style="color:var(--gold)">Your room is open</h2>
+    <p class="small">Share this code (or the link) with your partner. They join on their own phone.</p>
+    <div class="panel">
+      <div class="small">ROOM CODE</div>
+      <div class="title" style="font-size:46px; letter-spacing:10px">${esc(ROOM.code||"")}</div>
+      <button class="btn sm" id="copy">Copy invite link</button>
+      <div class="small" style="margin-top:10px">${guestHere?"🟢 Partner has joined!":"<span style='opacity:.7'>Waiting for your partner to join…</span>"}</div>
+    </div>
+    <button class="btn rose" id="setup">Set up my profile →</button>
+    <button class="btn ghost sm" id="cancel">Cancel room</button>
+  </div>`);
+  wrap.querySelector("#copy").onclick=async()=>{
+    try{
+      if(navigator.share){ await navigator.share({title:"Sexcalibur",text:"Join my royal court 👑",url:link}); }
+      else { await navigator.clipboard.writeText(link); toast("Invite link copied 📋"); }
+    }catch(e){ try{ await navigator.clipboard.writeText(link); toast("Invite link copied 📋"); }catch(_){ toast(link); } }
+  };
+  wrap.querySelector("#setup").onclick=()=>{ S.setup.idx=mySlot(); route("setup"); };
+  wrap.querySelector("#cancel").onclick=()=>{ leaveRoom(); route("lobby"); };
+  return wrap;
+};
+
+SCREENS.joincode = ()=>{
+  const wrap=$(`<div class="screen center">
+    <div style="height:10px"></div>
+    <div class="crown">👑</div>
+    <h2 class="serif" style="color:var(--gold)">Enter the room code</h2>
+    <p class="small">The 6-character code your partner shared.</p>
+    <div class="panel">
+      <input type="text" id="code" class="code-input" maxlength="6" placeholder="••••••" autocomplete="off" autocapitalize="characters"/>
+      <button class="btn" id="join">Join the court →</button>
+    </div>
+    <button class="btn ghost sm" id="back">Back</button>
+  </div>`);
+  const inp=wrap.querySelector("#code");
+  inp.oninput=()=>{ inp.value=inp.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6); };
+  wrap.querySelector("#join").onclick=async()=>{
+    const ok=await joinRoom(inp.value);
+    if(ok){
+      if(S.players[mySlot()]) route("home");
+      else { S.setup.idx=mySlot(); route("setup"); }
+    }
+  };
+  wrap.querySelector("#back").onclick=()=>route("lobby");
+  setTimeout(()=>inp.focus(),100);
+  return wrap;
+};
+
+/* ---- SETUP ---- */
 SCREENS.setup = ()=>{
-  const idx = S.setup.idx;
-  const existing = S.players[idx] || {name:"",title:"",crest:"👑",spice:2,give:[],receive:[],curious:[],limits:[],notes:""};
-  const titles = idx===0 ? ["Sovereign One","Their Majesty","The Challenger"] : ["Sovereign Two","The Rival","The Royal"];
+  const idx = roomActive() ? mySlot() : S.setup.idx;
+  const existing = S.players[idx] || {name:"",crest:"👑",spice:2,receive:[],give:[],curious:[],sensations:[],roleplay:[],limits:[],notes:""};
   const crests = ["👑","🔥","🌹","🗡️","🍑","🍒","💋","🐉","⚜️","🦊"];
+  const headRight = roomActive() ? `<div class="small">${idx===0?"You're the Host":"You're the Guest"}</div>`
+                                 : `<div class="small">Pass the phone after this →</div>`;
+
+  const panel=(id,title,sub,arr)=>`
+    <div class="panel">
+      <h3 class="serif" style="color:var(--rose2)">${title}</h3>
+      ${sub?`<p class="small">${sub}</p>`:""}
+      <div class="chips" id="${id}">${SET_OF[id].map(o=>chip(o.label,arr)).join("")}</div>
+    </div>`;
 
   const wrap=$(`<div class="screen">
     <div class="row between">
-      <div><span class="pill">Player ${idx+1} of 2</span></div>
-      <div class="small">Pass the phone after this →</div>
+      <div><span class="pill">${roomActive()?"Your profile":("Player "+(idx+1)+" of 2")}</span></div>
+      ${headRight}
     </div>
     <div style="height:10px"></div>
     <div class="panel">
       <h2 class="serif" style="color:var(--gold)">Forge your royal profile</h2>
       <p class="small">The game tailors quests to what you each love — and hides anything you rule out.</p>
-
       <label>Your name</label>
       <input type="text" id="name" maxlength="24" placeholder="What should the court call you?" value="${esc(existing.name)}"/>
-
       <label>Your crest</label>
       <div class="crest-pick" id="crests">${crests.map(c=>`<div class="crest ${c===existing.crest?'on':''}" data-c="${c}">${c}</div>`).join("")}</div>
-
       <label>Spice level — how far does your reign go tonight?</label>
       <input class="slider" type="range" min="1" max="4" step="1" id="spice" value="${existing.spice}"/>
       <div class="center spiceLbl" id="spiceLbl" style="color:var(--rose2)">${SPICE_LBL[existing.spice]}</div>
     </div>
 
-    <div class="panel">
-      <h3 class="serif" style="color:var(--rose2)">What you love having done to you</h3>
-      <p class="small">Quests aimed at you will lean into these.</p>
-      <div class="chips" id="receive">${TAGS.map(t=>chip(t,existing.receive)).join("")}</div>
-    </div>
-
-    <div class="panel">
-      <h3 class="serif" style="color:var(--rose2)">What you love doing to them</h3>
-      <div class="chips" id="give">${TAGS.map(t=>chip(t,existing.give)).join("")}</div>
-    </div>
-
-    <div class="panel">
-      <h3 class="serif" style="color:var(--gold)">Curious to try</h3>
-      <p class="small">The game will nudge these in on Wild quests.</p>
-      <div class="chips" id="curious">${TAGS.map(t=>chip(t,existing.curious)).join("")}</div>
-    </div>
+    ${panel("receive","What undoes you", "Quests aimed at you lean hard into these.", existing.receive)}
+    ${panel("give","What you love giving", "You'll get more quests where you run the show.", existing.give)}
+    ${panel("sensations","Sensations that work on you", "The texture of the night — what your skin says yes to.", existing.sensations)}
+    ${panel("curious","On the 'curious to try' list", "We'll slip these into spicier quests once you're both warmed up.", existing.curious)}
+    ${panel("roleplay","Roleplay vibes you'd play with", "Pick scenes that make you grin. Skip the panel if it's not your thing.", existing.roleplay)}
 
     <div class="panel">
       <h3 class="serif" style="color:#ff9b9b">🚫 Hard limits — off the table</h3>
-      <p class="small">Anything you tap here will <b>never</b> appear in a quest. Non-negotiable. This is the most important section.</p>
-      <div class="chips" id="limits">${TAGS.map(t=>chip(t,existing.limits,"limit")).join("")}</div>
+      <p class="small">The most important panel. Anything you tap here is <b>locked out of the whole game for both of you</b>. Non-negotiable.</p>
+      <div class="chips" id="limits">${SET_LIMITS.map(o=>chip(o.label,existing.limits,"limit")).join("")}</div>
       <label>Anything else to add or note (optional)</label>
       <textarea id="notes" placeholder="A fantasy you want on the menu, a mood, a hard no in your own words…">${esc(existing.notes)}</textarea>
     </div>
 
-    <button class="btn" id="save">${idx===0?"Save & pass the phone →":"Crown us both & begin 👑"}</button>
+    <button class="btn" id="save">${roomActive()?"Save my profile 👑":(idx===0?"Save & pass the phone →":"Crown us both & begin 👑")}</button>
     <button class="btn ghost sm" id="back" style="margin-top:10px">Back</button>
   </div>`);
 
-  // interactions
   wrap.querySelector("#crests").onclick=e=>{ const c=e.target.closest(".crest"); if(!c)return;
     wrap.querySelectorAll("#crests .crest").forEach(x=>x.classList.remove("on")); c.classList.add("on"); };
   wrap.querySelector("#spice").oninput=e=>{ wrap.querySelector("#spiceLbl").textContent=SPICE_LBL[e.target.value]; };
   wrap.querySelectorAll(".chips").forEach(group=>{
     group.onclick=e=>{ const c=e.target.closest(".chip"); if(!c)return; c.classList.toggle("on"); };
   });
-  wrap.querySelector("#back").onclick=()=>{ if(idx===0) route("splash"); else { S.setup.idx=0; save(); route("setup"); } };
+  wrap.querySelector("#back").onclick=()=>{
+    if(roomActive()) route(idx===0?"share":"joincode");
+    else if(idx===0) route(SYNC_ENABLED?"lobby":"splash");
+    else { S.setup.idx=0; saveLocal(); route("setup"); }
+  };
   wrap.querySelector("#save").onclick=()=>{
     const name=wrap.querySelector("#name").value.trim();
     if(!name){ toast("Give yourself a name, your majesty 👑"); return; }
@@ -365,20 +1023,43 @@ SCREENS.setup = ()=>{
       name, crest: wrap.querySelector("#crests .crest.on")?.dataset.c||"👑",
       spice:+wrap.querySelector("#spice").value,
       receive:getChips("receive"), give:getChips("give"), curious:getChips("curious"),
+      sensations:getChips("sensations"), roleplay:getChips("roleplay"),
       limits:getChips("limits"), notes:wrap.querySelector("#notes").value.trim(),
-      score:0, achievements:[]
+      score:0, achievements:[], deviceId: roomActive()?DEVICE_ID:null
     };
-    S.players[idx]=player;
-    if(idx===0){ S.setup.idx=1; save(); toast("Pass the phone to player 2 📲"); route("setup"); }
-    else { save(); route("ready"); }
+    if(roomActive()){
+      mutate(s=>{ s.players[idx]=player; });
+      if(bothReady()) route("home"); else route("waitprofile");
+    } else {
+      S.players[idx]=player;
+      if(idx===0){ S.setup.idx=1; saveLocal(); toast("Pass the phone to player 2 📲"); route("setup"); }
+      else { saveLocal(); route("ready"); }
+    }
   };
   return wrap;
 
-  function chip(t,arr,cls=""){ const on=arr&&arr.includes(t); return `<div class="chip ${cls} ${on?'on':''}" data-t="${t}">${t}</div>`; }
+  function chip(label,arr,cls=""){ const on=arr&&arr.includes(label); return `<div class="chip ${cls} ${on?'on':''}" data-t="${esc(label)}">${esc(label)}</div>`; }
+};
+
+/* waiting for partner profile (room mode) */
+SCREENS.waitprofile = ()=>{
+  if(bothReady()) { route("home"); return $("<div></div>"); }
+  const partner = S.players[mySlot()^1];
+  const wrap=$(`<div class="screen center">
+    <div style="height:30px"></div>
+    <div class="waitcrest">👑</div>
+    <h2 class="serif" style="color:var(--gold)">Profile saved.</h2>
+    <p class="muted">${partner?esc(partner.name)+" is ready. ":""}Waiting for your partner to finish forging their profile…</p>
+    <p class="small"><span class="syncdot ${ROOM.live?'live':'off'}"></span>${ROOM.live?'Connected':'Reconnecting…'}</p>
+    <button class="btn ghost sm" id="edit">Edit my profile</button>
+  </div>`);
+  wrap.querySelector("#edit").onclick=()=>route("setup");
+  return wrap;
 };
 
 SCREENS.ready = ()=>{
   const [a,b]=S.players;
+  if(!a||!b){ route("splash"); return $("<div></div>"); }
   const wrap=$(`<div class="screen center">
     <div style="height:20px"></div>
     <div class="crown">👑</div>
@@ -394,8 +1075,12 @@ SCREENS.ready = ()=>{
   return wrap;
 };
 
+/* ---- HOME / THRONE ROOM ---- */
 SCREENS.home = ()=>{
+  if(!bothReady()){ route(SYNC_ENABLED?"lobby":"splash"); return $("<div></div>"); }
   const [a,b]=S.players; const turn=S.game.turn;
+  const syncLine = roomActive()
+    ? `<div class="center small" style="margin-top:6px"><span class="syncdot ${ROOM.live?'live':'off'}"></span>Two-phone room <b>${esc(ROOM.code)}</b> — ${ROOM.live?'live':'connecting'}</div>` : "";
   const wrap=$(`<div class="screen">
     <div class="row between">
       <div class="title" style="font-size:26px">Sexcalibur</div>
@@ -407,204 +1092,961 @@ SCREENS.home = ()=>{
       ${scoreCard(a,turn===0)}
       ${scoreCard(b,turn===1)}
     </div>
-    <div class="center small" style="margin-top:8px">👑 First to <b>560</b> is crowned <b>Sovereign of the Sheets</b> — or just play till you collapse.</div>
+    ${syncLine}
 
     <div class="divider"></div>
     <h3 class="serif" style="color:var(--gold)">Choose a game</h3>
     <div class="modes">
-      ${mode("quick","🎲","Quick Quest","One card at a time. Take turns, rack up glory.")}
-      ${mode("campaign","🗺️","The Campaign","A guided escalation: Warm-Up → Exploration → Heat → Finale.")}
-      ${mode("roulette","🎡","Royal Roulette","Random spice, random target. Chaos reigns.")}
+      ${mode("quick","⚔️","Quick Quest","Fast dares against the clock. Build combos. First to a target.")}
+      ${mode("campaign","🗺️","The Crown Campaign","A guided journey in 4 acts. Co-op. End crowned together.")}
+      ${mode("roulette","🎡","Royal Roulette","Spin for spice, target & a risk modifier. Gamble for glory.")}
+      ${mode("positions","👑","Positions Conquest","Bracket tournament. Vote. Crown your Royal Favorite.")}
     </div>
 
-    <button class="btn ghost sm" id="profiles" style="margin-top:16px">View / edit profiles</button>
-    ${S.game.achievements.length? `<div class="divider"></div><h3 class="serif" style="color:var(--gold)">Trophies</h3>${
-      S.game.achievements.map(id=>{const a=ACHS.find(x=>x.id===id); return a?`<div class="ach"><div class="ic">${a.ic}</div><div><div class="t">${a.t}</div><div class="d">${a.d}</div></div></div>`:""}).join("")
-    }`:""}
-    <div class="footer">Tip: keep the phone between you and pass it on each turn. What happens in the realm, stays in the realm.</div>
+    <button class="btn ghost sm" id="codex" style="margin-top:16px">📜 Royal Codex (browse positions)</button>
+    <button class="btn ghost sm" id="profiles" style="margin-top:10px">View / edit profiles</button>
+    ${trophyBlock()}
+    <div class="footer">${roomActive()?"Two phones, in sync. Hard limits lock out for both of you.":"Keep the phone between you and pass it each turn. What happens in the realm, stays in the realm."}</div>
   </div>`);
 
   wrap.querySelector("#reset").onclick=reset;
-  wrap.querySelector("#profiles").onclick=()=>{ S.setup.idx=0; save(); route("setup"); };
-  wrap.querySelectorAll(".mode").forEach(m=> m.onclick=()=>startGame(m.dataset.m));
+  wrap.querySelector("#codex").onclick=()=>route("codex");
+  wrap.querySelector("#profiles").onclick=()=>{
+    if(roomActive()){ S.setup.idx=mySlot(); route("setup"); }
+    else { S.setup.idx=0; saveLocal(); route("setup"); }
+  };
+  wrap.querySelectorAll(".mode").forEach(m=> m.onclick=()=>openModeStart(m.dataset.m));
   return wrap;
 
-  function scoreCard(p,active){ const lv=levelFor(p.score);
+  function scoreCard(p,active){ const lv=levelFor(p.score||0);
     return `<div class="scorecard ${active?'active':''}"><div class="big">${p.crest}</div>
-      <div class="nm">${esc(p.name)}</div><div class="lv">${lv.t}</div><div class="pts">${p.score}</div>
+      <div class="nm">${esc(p.name)}</div><div class="lv">${lv.t}</div><div class="pts">${p.score||0}</div>
       ${active?'<div class="small" style="color:var(--rose2);font-weight:800">▶ your move</div>':'<div class="small">&nbsp;</div>'}</div>`; }
   function mode(id,ic,t,d){ return `<div class="mode" data-m="${id}"><div class="mic">${ic}</div><div><div class="mt">${t}</div><div class="md">${d}</div></div></div>`; }
 };
 
-/* ---------- Game engine ---------- */
-const PHASES=[ {name:"Warm-Up",spice:1}, {name:"Exploration",spice:2}, {name:"Heat",spice:3}, {name:"Finale",spice:4} ];
-
-function startGame(mode){
-  S.game.mode=mode; S.game.drawn=[]; S.game.reactions={}; S.game.phase=0; S.game.phaseCount=0;
-  // keep scores across games unless brand new; keep turn
-  drawCard(); save(); route("play");
+function trophyBlock(){
+  const ach=S.game.achievements||[];
+  if(!ach.length) return "";
+  return `<div class="divider"></div><h3 class="serif" style="color:var(--gold)">Trophies</h3>`+
+    ach.map(id=>{const a=ACHS.find(x=>x.id===id); return a?`<div class="ach"><div class="ic">${a.ic}</div><div><div class="t">${a.t}</div><div class="d">${a.d}</div></div></div>`:"";}).join("");
 }
 
-function activePlayer(){ return S.players[S.game.turn]; }
-function passivePlayer(){ return S.players[S.game.turn^1]; }
+/* ---- mode start screens / launch ---- */
+function openModeStart(m){
+  if(m==="quick") route("quickstart");
+  else if(m==="positions") route("conqueststart");
+  else startGame(m);
+}
 
-function eligibleCards(){
-  const receiver = passivePlayer(); // the card is performed ON the partner
-  const actor = activePlayer();
-  let maxSpice = Math.min(actor.spice, receiver.spice); // both must be up for it
-  let pool = DECK.filter(c=>{
-    if(c.spice>maxSpice) return false;
-    if(receiver.limits.includes(c.tag)) return false;       // hard-limit lockout
-    if(actor.limits.includes(c.tag)) return false;          // actor's own limits too
-    if(S.game.drawn.includes(c.text)) return false;         // no repeats this game
-    return true;
+function resetGameMeta(){
+  S.game.drawn=[]; S.game.reactions={}; S.game.reactSeen={}; S.game.cardCount=0;
+  S.game._giggles=0; S.game._wasBehind=false; S.game.paused=false;
+  S.game.quick=null; S.game.campaign=null; S.game.roulette=null; S.game.positions=null;
+}
+
+function startGame(mode, cfg){
+  mutate(s=>{
+    s.game.mode=mode;
+    s.game.drawn=[]; s.game.reactions={}; s.game.reactSeen={}; s.game.cardCount=0;
+    s.game._giggles=0; s.game._wasBehind=false; s.game.paused=false;
+    s.game.quick=null; s.game.campaign=null; s.game.roulette=null; s.game.positions=null;
+    if(mode==="quick"){
+      s.game.quick={ combo:0, target:(cfg&&cfg.target)||150, freeDuel:(cfg&&cfg.freeDuel)||false,
+                     truths:(cfg&&cfg.truths)||false, choosing:false };
+      drawForMode(s);
+    } else if(mode==="campaign"){
+      s.game.campaign={ act:0, heat:0, accepts:[0,0], objMet:false, reactCount:0, finale:null };
+      drawForMode(s);
+    } else if(mode==="roulette"){
+      s.game.roulette={ target:300, reels:null, wager:false, spun:false };
+      // card drawn after first spin
+    } else if(mode==="positions"){
+      // handled by conqueststart -> buildBracket
+    }
   });
-  // mode constraints
-  if(S.game.mode==="campaign"){
-    const ph=PHASES[Math.min(S.game.phase,PHASES.length-1)];
-    const exact=pool.filter(c=>c.spice===ph.spice);
-    if(exact.length) pool=exact; else pool=pool.filter(c=>c.spice<=ph.spice);
-  }
-  if(!pool.length){ // exhausted — allow repeats, respecting limits/spice
-    pool = DECK.filter(c=> c.spice<=maxSpice && !receiver.limits.includes(c.tag) && !actor.limits.includes(c.tag));
-  }
-  // weight: boost cards matching receiver's "receive"/"curious" or actor's "give"
-  const weighted=[];
-  pool.forEach(c=>{
-    let w=1;
-    if(receiver.receive.includes(c.tag)) w+=3;
-    if(actor.give.includes(c.tag)) w+=2;
-    if(c.spice===4 && (receiver.curious.includes(c.tag)||actor.curious.includes(c.tag))) w+=4;
-    for(let i=0;i<w;i++) weighted.push(c);
-  });
-  return weighted.length?weighted:pool;
+  if(mode==="quick") route("quickplay");
+  else if(mode==="campaign") route("campaignplay");
+  else if(mode==="roulette") route("rouletteplay");
 }
 
-function drawCard(){
-  const pool=eligibleCards();
-  const c=pool[Math.floor(Math.random()*pool.length)];
-  S.game.card=c; S.game.reactions={};
-  if(c) S.game.drawn.push(c.text);
+/* ===================================================================== *
+ * MODE 1 — QUICK QUEST                                                  *
+ * ===================================================================== */
+SCREENS.quickstart = ()=>{
+  const wrap=$(`<div class="screen">
+    <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">⚔️ Quick Quest</div></div>
+    <div style="height:10px"></div>
+    <div class="panel center">
+      <div class="crown" style="font-size:44px">⚔️</div>
+      <h2 class="serif" style="color:var(--gold)">Quick Quest</h2>
+      <p class="small">Fast dares against a 30-second clock. Each accepted card builds a <b>combo</b> that multiplies your next payout. Pass or run out of time — combo resets.</p>
+      <label>Target glory</label>
+      <div class="seg" id="target">
+        <button data-v="150" class="on">Short · 150</button>
+        <button data-v="250">Long · 250</button>
+        <button data-v="0">Free Duel</button>
+      </div>
+      <label class="check" style="justify-content:center"><input type="checkbox" id="truths"/>
+        <span style="font-weight:600">🃏 Add Truths to the deck (Truth or Dare)</span></label>
+      <button class="btn rose" id="go">Begin the duel ⚔️</button>
+    </div>
+  </div>`);
+  let target=150;
+  wrap.querySelector("#target").onclick=e=>{ const b=e.target.closest("button"); if(!b)return;
+    wrap.querySelectorAll("#target button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); target=+b.dataset.v; };
+  wrap.querySelector("#home").onclick=()=>route("home");
+  wrap.querySelector("#go").onclick=()=>{
+    startGame("quick",{ target, freeDuel:target===0, truths:wrap.querySelector("#truths").checked });
+  };
+  return wrap;
+};
+
+/* Quick Quest timer (UI-only; not synced) */
+let quickTimer=null, quickRemain=30;
+function stopQuickTimer(){ if(quickTimer){ clearInterval(quickTimer); quickTimer=null; } }
+function startQuickTimer(){
+  stopQuickTimer(); quickRemain=30; paintRing();
+  quickTimer=setInterval(()=>{
+    quickRemain--; paintRing();
+    if(quickRemain<=0){ stopQuickTimer(); onQuickTimeout(); }
+  },1000);
+}
+function paintRing(){
+  const el=document.getElementById("ringFill"); const txt=document.getElementById("ringTxt");
+  if(!el||!txt) return;
+  const C=2*Math.PI*32; const frac=clamp(quickRemain/30,0,1);
+  el.style.strokeDasharray=`${C}`; el.style.strokeDashoffset=`${C*(1-frac)}`;
+  el.style.stroke = quickRemain<=10? "var(--bad)" : "var(--rose)";
+  txt.textContent=quickRemain;
+}
+function onQuickTimeout(){
+  if(CURRENT!=="quickplay") return;
+  mutate(s=>{ if(s.game.quick) s.game.quick.combo=0; drawForMode(s); });
+  toast("⏳ Time! Combo reset. New card.");
 }
 
-SCREENS.play = ()=>{
-  const actor=activePlayer(), partner=passivePlayer(), c=S.game.card;
-  const phase = S.game.mode==="campaign"?PHASES[Math.min(S.game.phase,PHASES.length-1)]:null;
+SCREENS.quickplay = ()=>{
+  const q=S.game.quick; if(!q){ route("home"); return $("<div></div>"); }
+  // waiting-side view in room mode
+  if(roomActive() && !myTurn()) return waitingView("⚔️ Quick Quest");
+  const c=S.game.card; const actor=activePlayer(), partner=passivePlayer();
+  const comboMult = 1 + Math.min(q.combo,5)*0.1;
+  const targetLine = q.freeDuel ? "Free Duel — play till you drop" : `First to ${q.target} glory`;
+
   const wrap=$(`<div class="screen">
     <div class="row between">
       <div class="pill" id="home">⌂ Throne Room</div>
-      <div class="pill">${S.game.mode==="campaign"?"🗺️ Campaign":S.game.mode==="roulette"?"🎡 Roulette":"🎲 Quick Quest"}</div>
+      <div class="pill">⚔️ Quick Quest</div>
     </div>
-    ${phase?`<div class="phaseBar">${PHASES.map((p,i)=>`<div class="phaseDot ${i<=S.game.phase?'on':''}"></div>`).join("")}</div>
-      <div class="center small" style="margin-bottom:6px">Phase ${S.game.phase+1}/4 — <b style="color:var(--gold)">${phase.name}</b></div>`:""}
-
-    <div class="scorebar" style="margin:10px 0 16px">
+    <div class="scorebar" style="margin:10px 0 12px">
       ${miniScore(S.players[0],S.game.turn===0)}
       ${miniScore(S.players[1],S.game.turn===1)}
     </div>
+    <div class="center small">${targetLine}</div>
 
-    <div class="turnFlag">${actor.crest} ${esc(actor.name)} — this one's yours. ${partner.crest} ${esc(partner.name)} receives.</div>
-    <div class="qcard">
-      <div class="qpts">+${c?c.pts:0} 👑</div>
-      <div class="qcat">${c?c.cat:""}</div>
-      <div class="qtext">${c?esc(c.text):"You've done it all — generate more or crown a winner."}</div>
-      <div class="small" style="position:absolute;bottom:16px;left:20px;opacity:.7">${c?("theme: "+c.tag):""}</div>
+    <div class="row between" style="margin:10px 0 6px">
+      <div>${q.combo>0?`<span class="combo">🔥 Combo ×${comboMult.toFixed(1)}</span>`:`<span class="small">No combo yet — accept to build one</span>`}</div>
+      ${ringSVG()}
     </div>
+
+    <div class="turnFlag">${actor.crest} ${esc(actor.name)} — go! ${partner.crest} ${esc(partner.name)} receives.</div>
+    ${cardFace(c)}
+
+    ${q.truths && !q.choosing ? `
+      <div class="grid2" style="margin-top:14px">
+        <button class="btn violet sm" id="truth">Confess to the Court 🃏</button>
+        <button class="btn rose sm" id="accept">Prove it by deed ⚔️</button>
+      </div>
+      <button class="btn ghost sm" id="pass" style="margin-top:10px">Pass (no penalty)</button>
+    ` : `
+      <div class="grid2" style="margin-top:14px">
+        <button class="btn rose sm" id="accept">Done! Rate it 🔥</button>
+        <button class="btn ghost sm" id="pass">Pass (resets combo)</button>
+      </div>
+    `}
+    <div class="footer">Hard limits are locked out. Pass freely. 🛑 safeword (bottom) pauses, unscored.</div>
+  </div>`);
+
+  wrap.querySelector("#home").onclick=()=>{ stopQuickTimer(); route("home"); };
+  const accept=wrap.querySelector("#accept");
+  if(!c){ if(accept){ accept.disabled=true; accept.textContent="No cards fit your settings"; } }
+  if(accept) accept.onclick=()=>{ if(!S.game.card){ toast("No cards match — loosen a limit/spice 👑"); return; } stopQuickTimer(); route("quickheat"); };
+  const pass=wrap.querySelector("#pass");
+  if(pass) pass.onclick=()=>{ stopQuickTimer(); mutate(s=>{ if(s.game.quick) s.game.quick.combo=0; drawForMode(s); }); toast("Passed. Combo reset."); };
+  const truthBtn=wrap.querySelector("#truth");
+  if(truthBtn) truthBtn.onclick=()=>{
+    // draw a truth specifically
+    mutate(s=>{ const band=spiceBandForMode(); const pool=eligibleCards({deckNames:["truth"], band:{lo:1,hi:band.hi}}); drawCardInto(s, rand(pool)); });
+    toast("A truth is drawn. Answer to keep your combo 🃏");
+    route("quicktruth");
+  };
+
+  // (re)start timer for dares only
+  if(c && !(q.truths && !q.choosing)) setTimeout(startQuickTimer,30);
+  else stopQuickTimer();
+  return wrap;
+};
+
+/* truth resolution (keeps combo if answered, decline → partner may convert) */
+SCREENS.quicktruth = ()=>{
+  const c=S.game.card; const actor=activePlayer(), partner=passivePlayer();
+  if(!c){ route("quickplay"); return $("<div></div>"); }
+  const wrap=$(`<div class="screen">
+    <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">🃏 Truth</div></div>
+    <div style="height:8px"></div>
+    <div class="turnFlag">${actor.crest} ${esc(actor.name)} — confess.</div>
+    ${cardFace(c)}
+    <div class="grid2" style="margin-top:14px">
+      <button class="btn rose sm" id="answered">Answered — keep combo ✓</button>
+      <button class="btn ghost sm" id="decline">I'd rather not say</button>
+    </div>
+  </div>`);
+  wrap.querySelector("#home").onclick=()=>route("home");
+  wrap.querySelector("#answered").onclick=()=>{
+    mutate(s=>{ const p=activePlayer(); p.score=(p.score||0)+c.pts; if(s.game.quick) s.game.quick.combo++; bumpCard(s); afterScore(s,{}); drawForMode(s); });
+    toast(`+${c.pts} for honesty 🃏`);
+    route("quickplay");
+  };
+  wrap.querySelector("#decline").onclick=()=>{
+    if(confirm(`${partner.name} may convert this to a DARE at +50% ("Then prove it"). Allow the conversion?`)){
+      mutate(s=>{ s.game.card={...c, pts:Math.round(c.pts*1.5), cat:"Dare (converted)", deck:"foreplay"}; if(s.game.quick) s.game.quick.combo=0; });
+      route("quickheat");
+    } else {
+      mutate(s=>{ if(s.game.quick) s.game.quick.combo=0; drawForMode(s); });
+      toast("Declined. Combo resets, no penalty.");
+      route("quickplay");
+    }
+  };
+  return wrap;
+};
+
+/* Quick Quest collapsed heat verdict */
+SCREENS.quickheat = ()=>{
+  const c=S.game.card, q=S.game.quick; const actor=activePlayer();
+  if(!c){ route("quickplay"); return $("<div></div>"); }
+  const comboMult = 1 + Math.min(q?q.combo:0,5)*0.1;
+  const wrap=$(`<div class="screen">
+    <div style="height:8px"></div>
+    <div class="panel center">
+      <div class="qcat">Quest complete</div>
+      <h2 class="serif" style="color:var(--gold)">How was it, ${esc(passivePlayer().name)}?</h2>
+      <p class="small">One tap. Base +${c.pts}${q&&q.combo?` × combo ${comboMult.toFixed(1)}`:""}.</p>
+      <div class="grid3" style="margin-top:10px">
+        <button class="reactBtn" data-m="1"><b>🙂</b>meh<br><span class="small">×1</span></button>
+        <button class="reactBtn" data-m="1.5"><b>😏</b>nice<br><span class="small">×1.5</span></button>
+        <button class="reactBtn" data-m="2"><b>🔥</b>wow<br><span class="small">×2</span></button>
+      </div>
+    </div>
+  </div>`);
+  wrap.querySelectorAll(".reactBtn").forEach(b=> b.onclick=()=>{
+    const heat=+b.dataset.m;
+    let gained=0;
+    mutate(s=>{
+      const q2=s.game.quick;
+      const cm = 1 + Math.min(q2?q2.combo:0,5)*0.1;
+      gained=Math.round(c.pts*heat*cm);
+      const p=activePlayer(); p.score=(p.score||0)+gained;
+      if(q2) q2.combo++;
+      // reactions for achievement tracking (map heat to a reaction-ish)
+      const seen={}; if(heat>=2) seen.scream=true; else if(heat>=1.5) seen.gasp=true; else seen.giggle=true;
+      afterScore(s, seen);
+      bumpCard(s);
+      const win = !q2.freeDuel && p.score>=q2.target;
+      s.game.turn^=1;
+      drawForMode(s);
+      s.game._win = win;
+    });
+    toast(`+${gained} glory ⚔️`);
+    if(S.game._win){ S.game._win=false; commit(); route("victory"); }
+    else route("quickplay");
+  });
+  return wrap;
+};
+
+/* ===================================================================== *
+ * MODE 2 — THE CROWN CAMPAIGN  (co-op, act-gated, heat meter)           *
+ * ===================================================================== */
+const ACTS=[
+  {name:"The Summons", obj:"Earn 2 giggles or gasps between you", need:"react2"},
+  {name:"The Exploration", obj:"Both of you accept 2 cards each", need:"accepts"},
+  {name:"The Siege", obj:"Fill the Heat Meter to 100", need:"heat"},
+  {name:"The Coronation", obj:"Choose & complete one Finale Quest", need:"finale"},
+];
+function actObjectiveMet(){
+  const cp=S.game.campaign; if(!cp) return false;
+  const act=cp.act;
+  if(act===0) return cp.reactCount>=2;
+  if(act===1) return cp.accepts[0]>=2 && cp.accepts[1]>=2;
+  if(act===2) return cp.heat>=100;
+  if(act===3) return cp.finale && cp.finale.done;
+  return false;
+}
+
+SCREENS.campaignplay = ()=>{
+  const cp=S.game.campaign; if(!cp){ route("home"); return $("<div></div>"); }
+  if(roomActive() && !myTurn() && cp.act<3) return waitingView("🗺️ Campaign");
+  const act=clamp(cp.act,0,3); const meta=ACTS[act];
+  const actor=activePlayer(), partner=passivePlayer();
+
+  if(act===3) return campaignFinaleView();
+
+  const objMet=actObjectiveMet();
+  const c=S.game.card;
+  const wrap=$(`<div class="screen">
+    <div class="row between">
+      <div class="pill" id="home">⌂ Throne Room</div>
+      <div class="pill">🗺️ Campaign · Co-op</div>
+    </div>
+    <div class="phaseBar">${ACTS.map((p,i)=>`<div class="phaseDot ${i<=act?'on':''}"></div>`).join("")}</div>
+    <div class="center"><b style="color:var(--gold)">Act ${act+1}: ${meta.name}</b></div>
+    <div class="center small" style="margin-bottom:8px">🎯 ${esc(meta.obj)}</div>
+
+    <div style="margin:8px 0 14px">
+      <div class="small" style="margin-bottom:4px">🔥 Heat Meter — ${cp.heat}/100${act===2?" (fill me to advance)":""}</div>
+      <div class="meter"><i style="width:${clamp(cp.heat,0,100)}%"></i></div>
+    </div>
+
+    <div class="turnFlag">${actor.crest} ${esc(actor.name)} leads · ${partner.crest} ${esc(partner.name)} receives. You're a team.</div>
+    ${cardFace(c)}
 
     <div class="grid2" style="margin-top:14px">
-      <button class="btn rose sm" id="accept">Accept the quest ⚔️</button>
+      <button class="btn rose sm" id="accept">Accept & react ⚔️</button>
       <button class="btn ghost sm" id="pass">Pass (no penalty)</button>
     </div>
-    <div class="footer">Hard limits are locked out. Pass freely. The 🛑 safeword (bottom) pauses everything, unscored.</div>
+    <button class="btn ${objMet?'':'ghost'} sm" id="advance" style="margin-top:10px" ${objMet?'':'disabled'}>
+      ${objMet?`Advance to Act ${act+2} →`:`🔒 Advance (meet the objective first)`}
+    </button>
+    <div class="footer">No scoreboard here — you rise together. Spice can't climb until you've earned it.</div>
   </div>`);
 
   wrap.querySelector("#home").onclick=()=>route("home");
-  wrap.querySelector("#pass").onclick=()=>{ drawCard(); save(); route("play"); toast("Passed. New quest drawn."); };
-  const acc=wrap.querySelector("#accept");
-  if(!c){ acc.disabled=true; acc.textContent="No quests fit your settings"; }
-  acc.onclick=()=>{ if(!S.game.card){ toast("No quests match your limits/spice — loosen one in profiles 👑"); return; } route("reactions"); };
+  const accept=wrap.querySelector("#accept");
+  if(!c){ accept.disabled=true; accept.textContent="No cards fit — loosen a limit"; }
+  accept.onclick=()=>{ if(!S.game.card){ toast("No cards match your limits/spice 👑"); return; } route("campaignreact"); };
+  wrap.querySelector("#pass").onclick=()=>{ mutate(s=>{ drawForMode(s); }); toast("Passed. New card drawn."); };
+  wrap.querySelector("#advance").onclick=()=>{
+    if(!objMet){ toast("Meet the act's objective first 🔒"); return; }
+    mutate(s=>{ const c2=s.game.campaign; c2.act=clamp(c2.act+1,0,3); c2.reactCount=0; c2.accepts=[0,0];
+      if(c2.act===3){ c2.finale=null; } else { drawForMode(s); } });
+    if(S.game.campaign.act===3) route("campaignplay"); else { toast(`⚔️ Act ${cp.act+2} begins!`); route("campaignplay"); }
+  };
   return wrap;
-
-  function miniScore(p,active){ return `<div class="scorecard ${active?'active':''}" style="padding:8px">
-    <div class="nm">${p.crest} ${esc(p.name)}</div><div class="pts" style="font-size:22px">${p.score}</div></div>`; }
 };
 
-SCREENS.reactions = ()=>{
-  const actor=activePlayer(), c=S.game.card;
-  if(!c){ return SCREENS.home(); }
+SCREENS.campaignreact = ()=>{
+  const c=S.game.card; const actor=activePlayer();
+  if(!c){ route("campaignplay"); return $("<div></div>"); }
   const wrap=$(`<div class="screen">
-    <div class="pill" id="back2">‹ back to the quest</div>
-    <div style="height:12px"></div>
+    <div style="height:8px"></div>
     <div class="panel center">
-      <div class="qcat">Quest complete</div>
-      <h2 class="serif" style="color:var(--gold); margin-top:6px">+${c.pts} glory to ${esc(actor.name)} 👑</h2>
-      <p class="small">Tap every reaction you earned. Bonus glory for each — claiming the throne is worth the most.</p>
+      <div class="qcat">Card complete — feed the Heat Meter</div>
+      <h2 class="serif" style="color:var(--gold)">What did you earn together?</h2>
+      <p class="small">Tap every reaction. These fill the shared meter — no scores, just heat.</p>
       <div class="react" id="react">
-        ${REACTIONS.map(r=>`<div class="reactBtn" data-k="${r.key}"><b>${r.emoji}</b>${r.label} <span style="color:var(--gold)">+${r.pts}</span></div>`).join("")}
+        ${REACTIONS.map(r=>`<div class="reactBtn" data-k="${r.key}"><b>${r.emoji}</b>${r.label} <span style="color:var(--gold)">+${r.heat} 🔥</span></div>`).join("")}
       </div>
-      <button class="btn" id="finish">Tally & pass the crown →</button>
+      <button class="btn" id="finish">Add heat & continue →</button>
     </div>
   </div>`);
   const picked={};
   wrap.querySelector("#react").onclick=e=>{ const b=e.target.closest(".reactBtn"); if(!b)return;
-    const k=b.dataset.k; picked[k]=!picked[k]; b.classList.toggle("on", picked[k]); };
-  wrap.querySelector("#back2").onclick=()=>route("play");
+    const k=b.dataset.k; picked[k]=!picked[k]; b.classList.toggle("on",picked[k]); };
   wrap.querySelector("#finish").onclick=()=>{
-    let gained=c.pts; const got=[];
-    REACTIONS.forEach(r=>{ if(picked[r.key]){ gained+=r.pts; got.push(r); } });
-    actor.score+=gained;
-    // achievements
-    award("first");
-    if(picked.scream) award("loud");
-    if(picked.climax) award("coronation");
-    if(c.spice===4) award("decree");
-    S.game._giggles=(S.game._giggles||0)+(picked.giggle?1:0);
-    if(S.game._giggles>=3) award("jester");
-    const lead = activePlayer().score - passivePlayer().score;
-    if(S.game._wasBehind && lead>0) award("comeback");
-    S.game._wasBehind = (passivePlayer().score - activePlayer().score) >= 50;
-
-    // campaign progression
-    if(S.game.mode==="campaign"){ S.game.phaseCount++; if(S.game.phaseCount>=2 && S.game.phase<PHASES.length-1){ S.game.phase++; S.game.phaseCount=0; } }
-
-    const win = actor.score>=560;
-    S.game.turn ^= 1; // pass the crown
-    drawCard(); save();
-
-    const climax = picked.climax;
-    toast(got.length? (climax?"👑 THE THRONE IS CLAIMED! +"+(gained-c.pts)+" bonus":"+"+(gained-c.pts)+" bonus glory!") : "+"+c.pts+" glory");
-    if(win){ route("victory"); } else { route("play"); }
+    let heatAdd=0; REACTIONS.forEach(r=>{ if(picked[r.key]) heatAdd+=r.heat; });
+    mutate(s=>{
+      const cp=s.game.campaign;
+      cp.heat=clamp(cp.heat+heatAdd,0,100);
+      if(picked.giggle||picked.gasp) cp.reactCount++;
+      cp.accepts[s.game.turn]=(cp.accepts[s.game.turn]||0)+1;
+      afterScore(s,picked);
+      bumpCard(s);
+      s.game.turn^=1;
+      drawForMode(s);
+    });
+    toast(heatAdd?`+${heatAdd} 🔥 heat!`:"Onward.");
+    route("campaignplay");
   };
   return wrap;
 };
 
-function award(id){ if(!S.game.achievements.includes(id)){ S.game.achievements.push(id); const a=ACHS.find(x=>x.id===id);
-  setTimeout(()=>toast(`🏆 Trophy: ${a.t}`), 700); } }
+function campaignFinaleView(){
+  const cp=S.game.campaign;
+  if(!cp.finale){
+    // deal three finale quests
+    const band={lo:3,hi:spiceCeiling()};
+    const pool=eligibleCards({deckNames:["quests","wildcards"], band, allowDrawn:true});
+    const seen=new Set(); const picks=[];
+    let guard=0;
+    while(picks.length<3 && guard++<60){
+      const c=rand(pool); if(c && !seen.has(c.text)){ seen.add(c.text); picks.push(c); }
+      if(seen.size>=new Set(pool.map(x=>x.text)).size) break;
+    }
+    while(picks.length<3 && pool.length){ picks.push(rand(pool)); }
+    mutate(s=>{ s.game.campaign.finale={ choices:picks, chosen:null, done:false }; });
+    return $("<div></div>"); // re-render after mutate
+  }
+  const f=cp.finale;
+  if(f.done){
+    return $(`<div class="screen center"><div style="height:20px"></div>
+      <div class="crown" style="font-size:70px">👑</div>
+      <div class="title" style="font-size:28px">Crowned Co-Sovereigns</div>
+      <p class="muted">You marched the whole journey and finished the Coronation together. The realm is yours.</p>
+      <button class="btn" id="home" onclick="route('home')">Return to the Throne Room</button></div>`);
+  }
+  if(f.chosen==null){
+    const wrap=$(`<div class="screen">
+      <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">👑 Coronation</div></div>
+      <div style="height:8px"></div>
+      <div class="center"><b style="color:var(--gold)">Act 4: The Coronation</b></div>
+      <p class="center small">Choose ONE finale quest together. This is the crown.</p>
+      ${f.choices.map((c,i)=>`<div class="codexcard" data-i="${i}" style="cursor:pointer">
+        <div class="qcat">${esc(c.cat)} · ${SPICE_LBL[c.spice]}</div>
+        <div class="nm" style="margin-top:4px">${esc(c.text)}</div></div>`).join("")}
+    </div>`);
+    wrap.querySelector("#home").onclick=()=>route("home");
+    wrap.querySelectorAll(".codexcard").forEach(el=> el.onclick=()=>{
+      mutate(s=>{ s.game.campaign.finale.chosen=+el.dataset.i; });
+      route("campaignplay");
+    });
+    return wrap;
+  }
+  // chosen — show the quest + complete
+  const c=f.choices[f.chosen];
+  const wrap=$(`<div class="screen">
+    <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">👑 The Finale</div></div>
+    <div style="height:8px"></div>
+    <div class="center"><b style="color:var(--gold)">The Coronation Quest</b></div>
+    ${cardFace(c)}
+    <button class="btn rose" id="done">We did it — crown us 👑</button>
+    <button class="btn ghost sm" id="reselect" style="margin-top:10px">Pick a different finale</button>
+  </div>`);
+  wrap.querySelector("#home").onclick=()=>route("home");
+  wrap.querySelector("#reselect").onclick=()=>{ mutate(s=>{ s.game.campaign.finale.chosen=null; }); route("campaignplay"); };
+  wrap.querySelector("#done").onclick=()=>{
+    mutate(s=>{ s.game.campaign.finale.done=true; award(s,"coauthor"); award(s,"decree"); bumpCard(s); });
+    route("campaignplay");
+  };
+  return wrap;
+}
 
+/* ===================================================================== *
+ * MODE 3 — ROYAL ROULETTE  (3 reels + risk modifier)                    *
+ * ===================================================================== */
+const ROUL_TARGETS=[["You give","give"],["You receive","receive"],["Wildcard","wild"]];
+const ROUL_MODS=[
+  {k:"mercy", ic:"😇", name:"Mercy", desc:"Half spice, half points. A breather."},
+  {k:"standard", ic:"⚔️", name:"Standard", desc:"Card as drawn, normal points."},
+  {k:"double", ic:"💰", name:"Double or Nothing", desc:"Wager: earn a reaction → 2× points; fail → 0 and partner steals half."},
+  {k:"decree", ic:"👑", name:"Royal Decree", desc:"Spice +1 (capped), points ×1.5."},
+  {k:"tribute", ic:"🎁", name:"Tribute", desc:"Partner also scores half of what you score."},
+  {k:"usurp", ic:"🔁", name:"Usurp", desc:"Earn 🔥/👑 → steal 15 from partner."},
+];
+const SPICE_EMOJI=["","🌶️","🌶️🌶️","🌶️🌶️🌶️","🌶️🌶️🌶️🌶️"];
+
+SCREENS.rouletteplay = ()=>{
+  const r=S.game.roulette; if(!r){ route("home"); return $("<div></div>"); }
+  if(roomActive() && !myTurn()) return waitingView("🎡 Roulette");
+  const actor=activePlayer(), partner=passivePlayer();
+  const reels=r.reels;
+  const c=S.game.card;
+
+  const wrap=$(`<div class="screen">
+    <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">🎡 Royal Roulette</div></div>
+    <div class="scorebar" style="margin:10px 0 8px">
+      ${miniScore(S.players[0],S.game.turn===0)}
+      ${miniScore(S.players[1],S.game.turn===1)}
+    </div>
+    <div class="center small">First to ${r.target} glory. Variance is the point.</div>
+
+    <div class="reels" id="reels">
+      <div class="reel"><div class="rl" id="r0">${reels?SPICE_EMOJI[reels.spice]:"🎰"}</div><div class="cap">spice</div></div>
+      <div class="reel"><div class="rl" id="r1">${reels?targetIcon(reels.target):"🎯"}</div><div class="cap">target</div></div>
+      <div class="reel"><div class="rl" id="r2">${reels?(ROUL_MODS.find(m=>m.k===reels.mod)||{}).ic||"🎲":"🎲"}</div><div class="cap">modifier</div></div>
+    </div>
+
+    ${reels ? `
+      <div class="turnFlag">${reelSummary(reels, actor, partner)}</div>
+      ${cardFace(c)}
+      ${reels.mod==="double" ? `
+        <label class="check" style="justify-content:center"><input type="checkbox" id="wager"/>
+          <span style="font-weight:600">💰 Wager it — double or nothing</span></label>` : ""}
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn rose sm" id="accept">Accept ⚔️</button>
+        <button class="btn ghost sm" id="pass">Pass (no penalty)</button>
+      </div>
+      <button class="btn ghost sm" id="respin" style="margin-top:10px">Spin again 🎡</button>
+    ` : `
+      <button class="btn rose" id="spin">SPIN THE WHEEL 🎡</button>
+      <p class="center small" style="margin-top:10px">Three reels: spice × who-does-whom × a risk modifier.</p>
+    `}
+    <div class="footer">Hard limits locked out. Every pass is free. 🛑 safeword pauses, unscored.</div>
+  </div>`);
+
+  wrap.querySelector("#home").onclick=()=>route("home");
+  const spinBtn=wrap.querySelector("#spin"); if(spinBtn) spinBtn.onclick=()=>doSpin(wrap);
+  const respin=wrap.querySelector("#respin"); if(respin) respin.onclick=()=>{ mutate(s=>{ s.game.roulette.reels=null; s.game.card=null; }); route("rouletteplay"); };
+  const accept=wrap.querySelector("#accept");
+  if(accept){
+    if(!c){ accept.disabled=true; accept.textContent="No card fit — respin"; }
+    accept.onclick=()=>{
+      if(!S.game.card){ toast("No card matched — spin again 🎡"); return; }
+      const wager=wrap.querySelector("#wager");
+      mutate(s=>{ s.game.roulette.wager = !!(wager&&wager.checked); });
+      route("roulettereact");
+    };
+  }
+  const pass=wrap.querySelector("#pass"); if(pass) pass.onclick=()=>{ mutate(s=>{ s.game.roulette.reels=null; s.game.card=null; s.game.turn^=1; }); toast("Passed — crown moves on."); route("rouletteplay"); };
+  return wrap;
+
+  function targetIcon(tk){ return tk==="give"?"🫵":tk==="receive"?"🙋":"🃏"; }
+};
+
+function doSpin(wrap){
+  const reelEls=[wrap.querySelector("#r0"),wrap.querySelector("#r1"),wrap.querySelector("#r2")];
+  wrap.querySelectorAll(".reel").forEach(r=>r.classList.add("rolling"));
+  const ceil=spiceCeiling();
+  const faces=()=>{ if(reelEls[0]) reelEls[0].textContent=SPICE_EMOJI[1+Math.floor(Math.random()*ceil)];
+    if(reelEls[1]) reelEls[1].textContent=rand(["🫵","🙋","🃏"]);
+    if(reelEls[2]) reelEls[2].textContent=rand(ROUL_MODS).ic; };
+  const anim=setInterval(faces,80);
+  setTimeout(()=>{
+    clearInterval(anim);
+    wrap.querySelectorAll(".reel").forEach(r=>r.classList.remove("rolling"));
+    const spice=1+Math.floor(Math.random()*ceil);
+    const target=rand(ROUL_TARGETS)[1];
+    const mod=rand(ROUL_MODS).k;
+    mutate(s=>{
+      const r=s.game.roulette;
+      r.reels={spice, target, mod};
+      // build card by spice band
+      let band={lo:spice,hi:spice};
+      let card;
+      if(mod==="decree"){ const sp=Math.min(spice+1,ceil); band={lo:sp,hi:sp}; }
+      if(mod==="mercy"){ const sp=Math.max(1,spice-1); band={lo:sp,hi:sp}; }
+      // 30% chance of a generated position card on spice>=2
+      if(spice>=2 && Math.random()<0.3){ card=drawPositionCard(band); }
+      if(!card){ const pool=eligibleCards({band, allowDrawn:false}); card=rand(pool) || rand(eligibleCards({band, allowDrawn:true})); }
+      drawCardInto(s, card);
+    });
+    route("rouletteplay");
+  },900);
+}
+
+function reelSummary(reels, actor, partner){
+  const who = reels.target==="give" ? `${actor.crest} ${esc(actor.name)} performs on ${esc(partner.name)}`
+            : reels.target==="receive" ? `${partner.crest} ${esc(partner.name)} performs on ${esc(actor.name)}`
+            : `🃏 Wildcard — trailing player chooses who performs`;
+  const m=ROUL_MODS.find(x=>x.k===reels.mod);
+  return `${who} · ${m.ic} ${m.name}`;
+}
+
+SCREENS.roulettereact = ()=>{
+  const c=S.game.card, r=S.game.roulette; const actor=activePlayer();
+  if(!c||!r||!r.reels){ route("rouletteplay"); return $("<div></div>"); }
+  const m=ROUL_MODS.find(x=>x.k===r.reels.mod);
+  const wrap=$(`<div class="screen">
+    <div style="height:8px"></div>
+    <div class="panel center">
+      <div class="qcat">${m.ic} ${esc(m.name)} — ${esc(m.desc)}</div>
+      <h2 class="serif" style="color:var(--gold)">Tap what you earned</h2>
+      <div class="react" id="react">
+        ${REACTIONS.map(x=>`<div class="reactBtn" data-k="${x.key}"><b>${x.emoji}</b>${x.label} <span style="color:var(--gold)">+${x.pts}</span></div>`).join("")}
+      </div>
+      <button class="btn" id="finish">Resolve the wheel →</button>
+    </div>
+  </div>`);
+  const picked={};
+  wrap.querySelector("#react").onclick=e=>{ const b=e.target.closest(".reactBtn"); if(!b)return;
+    const k=b.dataset.k; picked[k]=!picked[k]; b.classList.toggle("on",picked[k]); };
+  wrap.querySelector("#finish").onclick=()=>{
+    let msg=""; let win=false;
+    mutate(s=>{
+      const r2=s.game.roulette; const mod=r2.reels.mod;
+      const me=s.players[s.game.turn], them=s.players[s.game.turn^1];
+      let base=c.pts;
+      let reactPts=0; REACTIONS.forEach(x=>{ if(picked[x.key]) reactPts+=x.pts; });
+      const gotHot = picked.scream||picked.climax;
+      const gotAny = picked.giggle||picked.gasp||picked.scream||picked.climax;
+      let gained=0;
+      if(mod==="mercy"){ gained=Math.round((base+reactPts)/2); me.score=(me.score||0)+gained; msg=`😇 Mercy: +${gained}`; }
+      else if(mod==="double"){
+        if(r2.wager){
+          if(gotAny){ gained=(base+reactPts)*2; me.score=(me.score||0)+gained; msg=`💰 Double WIN! +${gained}`; if(c.spice===4) award(s,"lucky"); }
+          else { const steal=Math.round(base/2); them.score=(them.score||0)+steal; msg=`💰 Lost the wager — ${them.name} steals ${steal}`; }
+        } else { gained=base+reactPts; me.score=(me.score||0)+gained; msg=`+${gained} (no wager)`; }
+      }
+      else if(mod==="decree"){ gained=Math.round((base+reactPts)*1.5); me.score=(me.score||0)+gained; msg=`👑 Royal Decree: +${gained}`; }
+      else if(mod==="tribute"){ gained=base+reactPts; me.score=(me.score||0)+gained; const tip=Math.round(gained/2); them.score=(them.score||0)+tip; msg=`🎁 +${gained}, ${them.name} +${tip}`; }
+      else if(mod==="usurp"){ gained=base+reactPts; me.score=(me.score||0)+gained; if(gotHot){ const st=15; them.score=Math.max(0,(them.score||0)-st); msg=`🔁 +${gained}, usurped ${st} from ${them.name}!`; } else msg=`+${gained}`; }
+      else { gained=base+reactPts; me.score=(me.score||0)+gained; msg=`+${gained} glory`; }
+
+      afterScore(s, picked);
+      bumpCard(s);
+      // wildcard target hands next spin to trailing player
+      let nextTurn = s.game.turn^1;
+      if(r2.reels.target==="wild"){
+        const trailing = (s.players[0].score||0) <= (s.players[1].score||0) ? 0 : 1;
+        nextTurn = trailing;
+      }
+      s.game.turn = nextTurn;
+      r2.reels=null; r2.wager=false; s.game.card=null;
+      win = (me.score||0) >= r2.target;
+      s.game._win=win;
+    });
+    toast(msg);
+    if(S.game._win){ S.game._win=false; commit(); route("victory"); }
+    else route("rouletteplay");
+  };
+  return wrap;
+};
+
+/* ===================================================================== *
+ * MODE 4 — POSITIONS CONQUEST  (single-elim bracket, vote)              *
+ * ===================================================================== */
+SCREENS.conqueststart = ()=>{
+  const lock=lockoutSet(); const ceil=spiceCeiling();
+  const avail=POSITIONS.filter(p=> p.tier<=ceil && !p.tags.some(t=>lock.has(t)));
+  const can8 = avail.length>=8, can4 = avail.length>=4;
+  const wrap=$(`<div class="screen">
+    <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">👑 Positions Conquest</div></div>
+    <div style="height:10px"></div>
+    <div class="panel center">
+      <div class="crown" style="font-size:44px">👑</div>
+      <h2 class="serif" style="color:var(--gold)">Positions Conquest</h2>
+      <p class="small">A single-elimination tournament of positions. Try two, then <b>both vote</b> which advances. Crown one <b>Royal Favorite</b>.</p>
+      <p class="small">${avail.length} eligible positions fit your limits & spice.</p>
+      <div class="seg" id="size">
+        <button data-v="4" class="${can4?'on':''}" ${can4?'':'disabled'}>4 positions · ~15 min</button>
+        <button data-v="8" ${can8?'':'disabled'}>8 positions · ~30 min</button>
+      </div>
+      <button class="btn rose" id="go" ${can4?'':'disabled'}>${can4?"Open the tournament 👑":"Not enough positions — loosen a limit"}</button>
+    </div>
+  </div>`);
+  let size=4;
+  wrap.querySelector("#size").onclick=e=>{ const b=e.target.closest("button"); if(!b||b.disabled)return;
+    wrap.querySelectorAll("#size button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); size=+b.dataset.v; };
+  wrap.querySelector("#home").onclick=()=>route("home");
+  wrap.querySelector("#go").onclick=()=>{ if(!can4){ toast("Need at least 4 positions."); return; } buildBracket(size); };
+  return wrap;
+};
+
+function buildBracket(size){
+  const lock=lockoutSet(); const ceil=spiceCeiling();
+  const receiver=S.players[0];
+  let avail=POSITIONS.filter(p=> p.tier<=ceil && !p.tags.some(t=>lock.has(t)));
+  if(avail.length<size) size=4;
+  if(avail.length<4){ toast("Not enough positions for a bracket."); return; }
+  // weight by curiosity of EITHER player, then sample distinct
+  const curio=new Set([...tagsOf(S.players[0]&&S.players[0].curious,"curious"), ...tagsOf(S.players[1]&&S.players[1].curious,"curious")]);
+  avail=avail.map(p=>({p, w: 1 + (p.tags.some(t=>curio.has(t))?2:0) + Math.random()}))
+             .sort((a,b)=>b.w-a.w).map(x=>x.p);
+  const seeds=avail.slice(0,size).map(p=>p.name);
+  // shuffle seeding
+  for(let i=seeds.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [seeds[i],seeds[j]]=[seeds[j],seeds[i]]; }
+  // round 1 pairs
+  const round=[]; for(let i=0;i<seeds.length;i+=2){ round.push([seeds[i], seeds[i+1]]); }
+  mutate(s=>{
+    s.game.mode="positions";
+    resetGameMetaInto(s);
+    s.game.positions={ size, rounds:[round], roundIdx:0, matchIdx:0,
+      voting:false, votes:[null,null], champion:null, aligned:true, history:[] };
+  });
+  route("conquest");
+}
+function resetGameMetaInto(s){
+  s.game.drawn=[]; s.game.reactions={}; s.game.reactSeen={}; s.game.cardCount=0;
+  s.game._giggles=0; s.game._wasBehind=false; s.game.paused=false;
+  s.game.quick=null; s.game.campaign=null; s.game.roulette=null;
+}
+function posByName(n){ return POSITIONS.find(p=>p.name===n); }
+
+SCREENS.conquest = ()=>{
+  const pg=S.game.positions; if(!pg){ route("home"); return $("<div></div>"); }
+  if(pg.champion){ return conquestVictory(); }
+  const round=pg.rounds[pg.roundIdx]; const match=round[pg.matchIdx];
+  const A=posByName(match[0]), B=posByName(match[1]);
+  const roundName = roundLabel(round.length, pg.size);
+
+  // bracket visual
+  const bracketHtml = pg.rounds.map((rd,ri)=>{
+    return `<div class="small" style="color:var(--gold);margin-top:8px">${esc(roundLabel(rd.length,pg.size))}</div>`+
+      rd.map((m,mi)=>{
+        const done = ri<pg.roundIdx || (ri===pg.roundIdx && mi<pg.matchIdx);
+        const cur = ri===pg.roundIdx && mi===pg.matchIdx;
+        const winner = pg.history.find(h=>h.r===ri&&h.m===mi);
+        const seat=(nm)=>{ if(nm==null) return `<div class="seat bye">— bye —</div>`;
+          let cls="seat"; if(winner){ cls+= winner.win===nm?" win":" out"; } if(cur) cls+=" "+(cur?"":"");
+          return `<div class="${cls}">${esc(nm)}</div>`; };
+        return `<div class="matchrow"${cur?' style="outline:1px solid var(--rose);border-radius:14px;padding:2px"':''}>${seat(m[0])}<div class="vs">vs</div>${seat(m[1])}</div>`;
+      }).join("");
+  }).join("");
+
+  if(pg.voting){
+    return conquestVote(A,B);
+  }
+
+  const wrap=$(`<div class="screen">
+    <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">👑 Conquest</div></div>
+    <div class="center" style="margin:6px 0"><b style="color:var(--gold)">${esc(roundName)}</b> · Match ${pg.matchIdx+1}/${round.length}</div>
+
+    <div class="panel">
+      ${matchSeat(A,"A")}
+      <div class="center small" style="margin:8px 0;color:var(--rose2);font-weight:800">— versus —</div>
+      ${matchSeat(B,"B")}
+      <p class="small" style="margin-top:10px">Try Position A, then Position B (about a minute each — no rush). Then both of you vote.</p>
+      <button class="btn rose" id="vote">We tried both — time to vote 🗳️</button>
+    </div>
+
+    <div class="bracket">${bracketHtml}</div>
+    <div class="footer">No points here — you're crowning a favorite. Pass or safeword any time.</div>
+  </div>`);
+  wrap.querySelector("#home").onclick=()=>route("home");
+  wrap.querySelector("#vote").onclick=()=>{ mutate(s=>{ s.game.positions.voting=true; s.game.positions.votes=[null,null]; }); route("conquest"); };
+  return wrap;
+
+  function matchSeat(P,letter){
+    if(!P) return `<div class="codexcard bye">— bye, auto-advances —</div>`;
+    return `<div class="codexcard"><div class="row between"><div class="nm">${letter}. ${esc(P.name)}</div><div class="pips">${"🌶️".repeat(P.tier)}</div></div>
+      <div class="ds">${esc(P.desc)}</div><div class="fl">${esc(P.flavor)}</div></div>`;
+  }
+};
+
+function conquestVote(A,B){
+  const pg=S.game.positions;
+  // room mode: each device votes its own slot; single device: both vote in sequence
+  const wrap=$(`<div class="screen">
+    <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">🗳️ Vote</div></div>
+    <div style="height:8px"></div>
+    <div class="panel center">
+      <h2 class="serif" style="color:var(--gold)">Cast your 🔥</h2>
+      <p class="small">${roomActive()?"Each of you votes on your own phone.":"Pass the phone — each of you taps your favorite."}</p>
+      <div class="small">Votes in: ${pg.votes.filter(v=>v!=null).length}/2</div>
+      <button class="btn rose" id="A" style="margin-top:14px">🔥 ${esc(A?A.name:"A")}</button>
+      <button class="btn rose" id="B">🔥 ${esc(B?B.name:"B")}</button>
+    </div>
+  </div>`);
+  wrap.querySelector("#home").onclick=()=>route("home");
+  const cast=(choice)=>{
+    mutate(s=>{
+      const p=s.game.positions;
+      if(roomActive()){ p.votes[mySlot()]=choice; }
+      else { const slot = p.votes[0]==null?0:1; p.votes[slot]=choice; }
+    });
+    const v=S.game.positions.votes;
+    if(v[0]!=null && v[1]!=null){ resolveMatch(); }
+    else if(!roomActive()){ toast("First vote in — pass the phone for the second 🗳️"); route("conquest"); }
+    else { toast("Vote cast — waiting for partner."); route("conquest"); }
+  };
+  wrap.querySelector("#A").onclick=()=>cast("A");
+  wrap.querySelector("#B").onclick=()=>cast("B");
+  return wrap;
+}
+
+function resolveMatch(){
+  const pg=S.game.positions;
+  const round=pg.rounds[pg.roundIdx]; const match=round[pg.matchIdx];
+  let winnerName;
+  const [v0,v1]=pg.votes;
+  if(v0===v1){ winnerName = v0==="A"?match[0]:match[1]; }
+  else {
+    // tie → active player breaks; flavor: caress-off, active picks
+    winnerName = rand([match[0],match[1]]); // random tiebreak (both disagree)
+    mutate(s=>{ s.game.positions.aligned=false; });
+  }
+  mutate(s=>{
+    const p=s.game.positions;
+    p.history.push({r:p.roundIdx, m:p.matchIdx, win:winnerName});
+    p.voting=false; p.votes=[null,null];
+    // advance match
+    p.matchIdx++;
+    if(p.matchIdx>=round.length){
+      // build next round from winners
+      const winners=round.map((m,mi)=>{
+        const h=p.history.find(x=>x.r===p.roundIdx&&x.m===mi); return h?h.win:m[0];
+      });
+      if(winners.length===1){ p.champion=winners[0]; if(p.aligned) award(s,"aligned"); }
+      else { const nr=[]; for(let i=0;i<winners.length;i+=2){ nr.push([winners[i], winners[i+1]!=null?winners[i+1]:null]); }
+        p.rounds.push(nr); p.roundIdx++; p.matchIdx=0; }
+    }
+  });
+  toast(`👑 ${winnerName} advances!`);
+  route("conquest");
+}
+function roundLabel(matches, size){
+  const teams=matches*2;
+  if(teams<=2) return "The Final";
+  if(teams<=4) return "Semifinals";
+  if(teams<=8) return "Quarterfinals";
+  return "Round 1";
+}
+function conquestVictory(){
+  const pg=S.game.positions; const P=posByName(pg.champion);
+  const wrap=$(`<div class="screen center">
+    <div style="height:20px"></div>
+    <div class="crown" style="font-size:70px">👑</div>
+    <div class="title" style="font-size:26px">Royal Favorite</div>
+    <div class="panel" style="margin-top:14px">
+      <div class="nm" style="font-size:20px;font-weight:800;color:var(--gold)">${esc(pg.champion)}</div>
+      ${P?`<div class="pips" style="color:var(--rose2);font-weight:800">${"🌶️".repeat(P.tier)}</div>
+      <div class="ds small" style="margin-top:6px">${esc(P.desc)}</div>
+      <div class="fl" style="font-style:italic;color:var(--gold);margin-top:8px">${esc(P.flavor)}</div>`:""}
+    </div>
+    <p class="muted" style="margin-top:14px">Crowned the realm's favorite. Saved to your Crown Jewels.</p>
+    <button class="btn" id="again">Run another tournament</button>
+    <button class="btn ghost" id="home">Throne Room</button>
+  </div>`);
+  // persist to crown jewels
+  try{ const cj=JSON.parse(localStorage.getItem("sxc_crownjewels")||"[]");
+    if(!cj.includes(pg.champion)){ cj.unshift(pg.champion); localStorage.setItem("sxc_crownjewels", JSON.stringify(cj.slice(0,12))); } }catch(e){}
+  wrap.querySelector("#again").onclick=()=>route("conqueststart");
+  wrap.querySelector("#home").onclick=()=>route("home");
+  return wrap;
+}
+
+/* ===================================================================== *
+ * ROYAL CODEX (browse positions)                                        *
+ * ===================================================================== */
+SCREENS.codex = ()=>{
+  const lock=lockoutSet();
+  const tiers=[[1,"Mild 🙂"],[2,"Medium 😏"],[3,"Spicy 🌶️"],[4,"Wild 🔥"]];
+  let jewels=[]; try{ jewels=JSON.parse(localStorage.getItem("sxc_crownjewels")||"[]"); }catch(e){}
+  const groups=tiers.map(([tier,lbl])=>{
+    const ps=POSITIONS.filter(p=>p.tier===tier && !p.tags.some(t=>lock.has(t)));
+    if(!ps.length) return "";
+    return `<div class="codexgrp"><h4>${lbl}</h4>${ps.map(p=>`
+      <div class="codexcard"><div class="row between"><div class="nm">${esc(p.name)}${jewels.includes(p.name)?" 👑":""}</div><div class="pips">${"🌶️".repeat(p.tier)}</div></div>
+        <div class="ds">${esc(p.desc)}</div><div class="fl">${esc(p.flavor)}</div></div>`).join("")}</div>`;
+  }).join("");
+  const hidden=POSITIONS.filter(p=>p.tags.some(t=>lock.has(t))).length;
+  const wrap=$(`<div class="screen">
+    <div class="row between"><div class="pill" id="home">⌂ Throne Room</div><div class="pill">📜 Royal Codex</div></div>
+    <div style="height:6px"></div>
+    <h2 class="serif" style="color:var(--gold)">The Royal Codex</h2>
+    <p class="small">${POSITIONS.length - hidden} positions in your realm${hidden?` · ${hidden} hidden by your hard limits`:""}. Browse freely — pure reference, no scoring.</p>
+    ${jewels.length?`<div class="codexcard"><div class="nm">👑 Your Crown Jewels</div><div class="small">${jewels.map(esc).join(" · ")}</div></div>`:""}
+    ${groups || `<p class="muted">Every position is filtered out by your current hard limits. Loosen one to see the Codex.</p>`}
+    <button class="btn ghost sm" id="home2" style="margin-top:16px">Back to the Throne Room</button>
+  </div>`);
+  wrap.querySelector("#home").onclick=()=>route("home");
+  wrap.querySelector("#home2").onclick=()=>route("home");
+  return wrap;
+};
+
+/* ===================================================================== *
+ * VICTORY (competitive modes)                                           *
+ * ===================================================================== */
 SCREENS.victory = ()=>{
-  const [a,b]=S.players; const win = a.score>=b.score?a:b; const lose=win===a?b:a;
+  const [a,b]=S.players; if(!a||!b){ route("home"); return $("<div></div>"); }
+  const win = (a.score||0)>=(b.score||0)?a:b; const lose=win===a?b:a;
+  const titleByMode = S.game.mode==="roulette"?"High Roller of the Court":"Duelist";
   const wrap=$(`<div class="screen center">
     <div style="height:24px"></div>
     <div class="crown" style="font-size:70px">👑</div>
     <div class="title" style="font-size:30px">${esc(win.name)} is crowned</div>
-    <div class="tag-line">Sovereign of the Sheets</div>
+    <div class="tag-line">${titleByMode}</div>
     <div class="scorebar" style="margin:22px 0">
-      <div class="scorecard active"><div class="big">${win.crest}</div><div class="nm">${esc(win.name)}</div><div class="pts">${win.score}</div></div>
-      <div class="scorecard"><div class="big">${lose.crest}</div><div class="nm">${esc(lose.name)}</div><div class="pts">${lose.score}</div></div>
+      <div class="scorecard active"><div class="big">${win.crest}</div><div class="nm">${esc(win.name)}</div><div class="pts">${win.score||0}</div></div>
+      <div class="scorecard"><div class="big">${lose.crest}</div><div class="nm">${esc(lose.name)}</div><div class="pts">${lose.score||0}</div></div>
     </div>
     <p class="muted">A hard-fought reign. The loser owes the winner one royal favor of their choosing. 😏</p>
+    ${trophyBlock()}
     <button class="btn" id="keep">Play on (keep scores)</button>
     <button class="btn ghost" id="newreign">New reign (reset scores)</button>
   </div>`);
-  wrap.querySelector("#keep").onclick=()=>{ save(); route("home"); };
-  wrap.querySelector("#newreign").onclick=()=>{
-    S.players.forEach(p=>{p.score=0;p.achievements=[];}); S.game.achievements=[]; S.game._giggles=0; save(); route("home");
-  };
+  wrap.querySelector("#keep").onclick=()=>route("home");
+  wrap.querySelector("#newreign").onclick=()=>{ mutate(s=>{ s.players.forEach(p=>{ if(p){p.score=0;} }); s.game.achievements=[]; s.game._giggles=0; }); route("home"); };
   return wrap;
 };
 
-/* ---------- boot ---------- */
-route(S.players.length>=2 ? "home" : "splash");
+/* ===================================================================== *
+ * SHARED VIEW FRAGMENTS                                                 *
+ * ===================================================================== */
+function cardFace(c){
+  if(!c) return `<div class="qcard"><div class="qtext">You've explored it all — pass, or crown a winner.</div></div>`;
+  const themeLine = c.flavor ? `<div class="qflavor">${esc(c.flavor)}</div>`
+    : (c.tags&&c.tags.length ? `<div class="small" style="position:absolute;bottom:16px;left:20px;opacity:.65">${esc(c.tags.slice(0,3).join(" · "))}</div>` : "");
+  return `<div class="qcard">
+    <div class="qpts">+${c.pts||0} 👑</div>
+    <div class="qcat">${esc(c.cat)}</div>
+    <div class="qtext">${esc(c.text)}</div>
+    ${themeLine}
+  </div>`;
+}
+function miniScore(p,active){ if(!p) return `<div class="scorecard" style="padding:8px"><div class="nm">—</div></div>`;
+  return `<div class="scorecard ${active?'active':''}" style="padding:8px">
+    <div class="nm">${p.crest} ${esc(p.name)}</div><div class="pts" style="font-size:22px">${p.score||0}</div></div>`; }
+function ringSVG(){
+  return `<div class="ring"><svg width="74" height="74" viewBox="0 0 74 74">
+    <circle cx="37" cy="37" r="32" stroke="rgba(255,255,255,.12)" stroke-width="6" fill="none"/>
+    <circle id="ringFill" cx="37" cy="37" r="32" stroke="var(--rose)" stroke-width="6" fill="none" stroke-linecap="round"/>
+    </svg><div class="t" id="ringTxt">30</div></div>`;
+}
+function waitingView(label){
+  const partner=activePlayer(); const c=S.game.card;
+  return $(`<div class="screen center">
+    <div class="row between"><div class="pill" onclick="route('home')">⌂ Throne Room</div><div class="pill">${label}</div></div>
+    <div class="scorebar" style="margin:12px 0 18px">
+      ${miniScore(S.players[0],S.game.turn===0)}
+      ${miniScore(S.players[1],S.game.turn===1)}
+    </div>
+    <div class="waitcrest">${partner?partner.crest:"👑"}</div>
+    <h2 class="serif" style="color:var(--gold)">${esc(partner?partner.name:"Your partner")} is on a quest…</h2>
+    ${c?`<div class="qcard" style="opacity:.85;margin-top:14px;text-align:left"><div class="qcat">${esc(c.cat)}</div><div class="qtext">${esc(c.text)}</div></div>`:""}
+    <p class="muted" style="margin-top:16px"><span class="syncdot ${ROOM.live?'live':'off'}"></span>Sit back, your majesty. The crown will reach you here.</p>
+  </div>`);
+}
+
+/* ===================================================================== *
+ * SCORING SIDE-EFFECTS (achievements, streaks)                          *
+ * ===================================================================== */
+function bumpCard(s){
+  s.game.cardCount=(s.game.cardCount||0)+1;
+  if(s.game.cardCount>=20) award(s,"marathon");
+}
+function afterScore(s, picked){
+  picked=picked||{};
+  award(s,"first");
+  if(picked.scream) award(s,"loud");
+  if(picked.climax) award(s,"coronation");
+  // full house: all four reaction types seen across the game
+  s.game.reactSeen=s.game.reactSeen||{};
+  REACTIONS.forEach(r=>{ if(picked[r.key]) s.game.reactSeen[r.key]=true; });
+  if(REACTIONS.every(r=>s.game.reactSeen[r.key])) award(s,"fullhouse");
+  s.game._giggles=(s.game._giggles||0)+(picked.giggle?1:0);
+  if(s.game._giggles>=3) award(s,"jester");
+  if(s.game.card && s.game.card.spice===4) award(s,"decree");
+  // comeback (competitive modes)
+  if(s.players[0]&&s.players[1]){
+    const me=s.players[s.game.turn], them=s.players[s.game.turn^1];
+    const lead=(me.score||0)-(them.score||0);
+    if(s.game._wasBehind && lead>0) award(s,"comeback");
+    s.game._wasBehind = ((them.score||0)-(me.score||0))>=50;
+  }
+}
+function award(s,id){
+  s.game.achievements=s.game.achievements||[];
+  if(!s.game.achievements.includes(id)){
+    s.game.achievements.push(id);
+    const a=ACHS.find(x=>x.id===id);
+    if(a) setTimeout(()=>toast(`🏆 Trophy: ${a.t}`), 650);
+  }
+}
+
+/* ===================================================================== *
+ * BOOT                                                                  *
+ * ===================================================================== */
+(function boot(){
+  // deep-link join: #JOIN-XXXXXX
+  const m=(location.hash||"").match(/^#JOIN-([A-Z0-9]{6})$/i);
+  if(m && SYNC_ENABLED){
+    history.replaceState(null,"",location.pathname);
+    route("joincode");
+    setTimeout(()=>{ const inp=document.getElementById("code"); if(inp){ inp.value=m[1].toUpperCase(); } },150);
+    return;
+  }
+  route(bothReady() ? "home" : "splash");
+})();
 </script>
 </body>
 </html>
