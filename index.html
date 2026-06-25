@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#1a0b2e" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>%F0%9F%91%91</text></svg>" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Sexcalibur — Two Players, One Throne</title>
+<style>
+  :root{
+    --bg:#140a24; --bg2:#1f0f36; --card:#241141; --card2:#2e1652;
+    --gold:#f4c95d; --gold2:#e0a93f; --rose:#ff4d8d; --rose2:#ff7eb0;
+    --violet:#9b6dff; --ink:#f5ecff; --muted:#b9a7d8; --line:#3a2160;
+    --good:#5dffb0; --bad:#ff6b6b;
+    --shadow:0 18px 50px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #3a1a5e 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 110%, #4a1240 0%, transparent 55%),
+      linear-gradient(180deg,var(--bg),var(--bg2));
+    color:var(--ink); min-height:100vh; overflow-x:hidden;
+  }
+  #app{max-width:560px; margin:0 auto; padding:18px 16px 40px; min-height:100vh}
+  .screen{animation:rise .35s cubic-bezier(.2,.8,.2,1)}
+  @keyframes rise{from{opacity:0; transform:translateY(14px)}to{opacity:1; transform:none}}
+  h1,h2,h3{margin:0 0 .4em; line-height:1.1}
+  .serif{font-family:"Georgia","Times New Roman",serif}
+  .crown{font-size:54px; filter:drop-shadow(0 6px 14px rgba(244,201,93,.4))}
+  .title{
+    font-family:"Georgia",serif; font-weight:800; letter-spacing:.5px;
+    font-size:42px; background:linear-gradient(180deg,#fff,var(--gold) 60%,var(--gold2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 2px 30px rgba(244,201,93,.25);
+  }
+  .tag-line{color:var(--rose2); font-style:italic; letter-spacing:.4px}
+  .muted{color:var(--muted)}
+  .center{text-align:center}
+  .pill{display:inline-block; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:700;
+    background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted)}
+  .panel{background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--line);
+    border-radius:20px; padding:20px; box-shadow:var(--shadow)}
+  .panel + .panel{margin-top:14px}
+  .row{display:flex; gap:10px; align-items:center}
+  .between{justify-content:space-between}
+  .grow{flex:1}
+  label{display:block; font-size:13px; font-weight:700; color:var(--gold); margin:14px 0 6px; letter-spacing:.3px}
+  input[type=text]{
+    width:100%; padding:13px 14px; border-radius:12px; border:1px solid var(--line);
+    background:rgba(0,0,0,.25); color:var(--ink); font-size:16px; outline:none;
+  }
+  input[type=text]:focus{border-color:var(--violet); box-shadow:0 0 0 3px rgba(155,109,255,.25)}
+  textarea{
+    width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line);
+    background:rgba(0,0,0,.25); color:var(--ink); font-size:15px; outline:none; resize:vertical; min-height:64px;
+  }
+  .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px}
+  .chip{
+    padding:9px 13px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.04);
+    color:var(--muted); font-size:13px; font-weight:600; cursor:pointer; user-select:none; transition:.15s;
+  }
+  .chip.on{background:linear-gradient(180deg,var(--rose),var(--rose2)); color:#2a0016; border-color:transparent; font-weight:800}
+  .chip.limit.on{background:linear-gradient(180deg,#ff6b6b,#ff9b9b); color:#2a0000}
+  .crest-pick{display:flex; flex-wrap:wrap; gap:8px}
+  .crest{font-size:26px; width:48px; height:48px; display:grid; place-items:center; border-radius:12px;
+    border:1px solid var(--line); background:rgba(0,0,0,.2); cursor:pointer}
+  .crest.on{border-color:var(--gold); box-shadow:0 0 0 3px rgba(244,201,93,.3); background:rgba(244,201,93,.12)}
+  .btn{
+    display:block; width:100%; text-align:center; padding:16px; border-radius:14px; border:0;
+    font-size:17px; font-weight:800; cursor:pointer; letter-spacing:.3px; margin-top:14px; transition:.15s;
+    background:linear-gradient(180deg,var(--gold),var(--gold2)); color:#2a1c00; box-shadow:0 10px 24px rgba(244,201,93,.3);
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn.rose{background:linear-gradient(180deg,var(--rose),var(--rose2)); color:#2a0016; box-shadow:0 10px 24px rgba(255,77,141,.3)}
+  .btn.ghost{background:transparent; color:var(--muted); border:1px solid var(--line); box-shadow:none}
+  .btn.sm{padding:11px; font-size:14px; margin-top:0}
+  .btn:disabled{opacity:.45; cursor:not-allowed}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .check{display:flex; gap:10px; align-items:flex-start; margin-top:14px; cursor:pointer}
+  .check input{width:22px; height:22px; margin-top:1px; accent-color:var(--rose)}
+  .slider{width:100%; accent-color:var(--rose); margin-top:8px}
+  .spiceLbl{font-weight:800}
+  .scorebar{display:flex; gap:10px}
+  .scorecard{flex:1; text-align:center; padding:14px 8px; border-radius:16px; border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--card),var(--card2))}
+  .scorecard .nm{font-weight:800; font-size:15px}
+  .scorecard .lv{font-size:11px; color:var(--gold); font-weight:700}
+  .scorecard .pts{font-size:30px; font-weight:900; font-family:"Georgia",serif; margin-top:2px}
+  .scorecard.active{border-color:var(--rose); box-shadow:0 0 0 2px rgba(255,77,141,.35)}
+  .qcard{border-radius:22px; padding:24px 20px; min-height:230px; position:relative; overflow:hidden;
+    border:1px solid var(--line); box-shadow:var(--shadow);
+    background:linear-gradient(160deg,#33184f,#491d52 70%,#5a2240)}
+  .qcat{font-size:12px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--gold)}
+  .qtext{font-size:22px; font-weight:700; line-height:1.32; margin:14px 0 10px; font-family:"Georgia",serif}
+  .qpts{position:absolute; top:18px; right:18px; font-weight:900; color:var(--gold); font-size:14px}
+  .turnFlag{font-size:13px; color:var(--rose2); font-weight:800; letter-spacing:.4px; margin-bottom:6px}
+  .react{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px}
+  .reactBtn{padding:14px 8px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.22);
+    color:var(--ink); font-weight:700; font-size:14px; cursor:pointer; text-align:center}
+  .reactBtn b{display:block; font-size:20px; margin-bottom:2px}
+  .reactBtn.on{border-color:var(--rose); background:rgba(255,77,141,.18)}
+  .safeword{position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:50;
+    background:rgba(20,8,20,.85); backdrop-filter:blur(6px); border:1px solid var(--bad); color:#ffd2d2;
+    padding:10px 18px; border-radius:999px; font-weight:800; font-size:13px; cursor:pointer}
+  .ach{display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+    background:rgba(0,0,0,.18); margin-top:8px}
+  .ach .ic{font-size:22px}
+  .ach .t{font-weight:700; font-size:14px}
+  .ach .d{font-size:12px; color:var(--muted)}
+  .toast{position:fixed; left:50%; top:18px; transform:translateX(-50%) translateY(-20px); z-index:80;
+    background:linear-gradient(180deg,var(--gold),var(--gold2)); color:#2a1c00; padding:12px 18px; border-radius:14px;
+    font-weight:800; box-shadow:var(--shadow); opacity:0; transition:.3s}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  .modes{display:grid; gap:10px; margin-top:6px}
+  .mode{display:flex; gap:14px; align-items:center; padding:16px; border-radius:16px; border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--card),var(--card2)); cursor:pointer; text-align:left}
+  .mode .mic{font-size:28px}
+  .mode .mt{font-weight:800; font-size:16px}
+  .mode .md{font-size:13px; color:var(--muted)}
+  .small{font-size:12px; color:var(--muted)}
+  .divider{height:1px; background:var(--line); margin:16px 0}
+  .footer{ text-align:center; margin-top:22px; font-size:11px; color:#6f5a93; line-height:1.5}
+  a{color:var(--rose2)}
+  .phaseBar{display:flex; gap:6px; margin:8px 0 14px}
+  .phaseDot{flex:1; height:6px; border-radius:999px; background:var(--line)}
+  .phaseDot.on{background:linear-gradient(90deg,var(--rose),var(--gold))}
+  .big{font-size:38px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+/* =========================================================================
+   SEXCALIBUR — a two-player royal conquest. Self-contained, local-only.
+   Pass-and-play. No accounts, no server, nothing leaves this device.
+   ========================================================================= */
+
+/* ---------- Tag vocabulary (used for interests AND hard limits) ---------- */
+const TAGS = [
+  "Kissing","Massage","Dirty talk","Teasing","Striptease","Hands","Oral (give)","Oral (receive)",
+  "Toys","Blindfold","Light restraint","Spanking","Roleplay","Sensory (ice/feather)","Temperature",
+  "Biting","Hair-pulling","Position play","Risky/adventurous","Filthy photos"
+];
+
+/* ---------- The Quest Deck ----------
+   spice: 1 Mild · 2 Medium · 3 Spicy · 4 Wild
+   tag: matched against the RECEIVER's hard limits (filtered out) and interests (boosted)
+   pts: base glory awarded for completing
+*/
+const DECK = [
+  // ---- MILD (1) : warm-up, clothes mostly on ----
+  {cat:"Foreplay", spice:1, pts:10, tag:"Kissing", text:"Kiss them somewhere you've never kissed them before. Hold it for 20 seconds."},
+  {cat:"Tease", spice:1, pts:10, tag:"Dirty talk", text:"Whisper the single most scandalous thing you'd do later — then walk away."},
+  {cat:"Foreplay", spice:1, pts:12, tag:"Massage", text:"Two-minute shoulder & neck massage. With intent. No rushing."},
+  {cat:"Tease", spice:1, pts:10, tag:"Teasing", text:"Trace one fingertip from the back of their neck down their spine. Slowly."},
+  {cat:"Dare", spice:1, pts:12, tag:"Dirty talk", text:"Describe, out loud, your favorite thing they do to you."},
+  {cat:"Foreplay", spice:1, pts:12, tag:"Kissing", text:"Make out like it's a first date and you might get caught. 60 seconds, hands above the waist."},
+  {cat:"Tease", spice:1, pts:10, tag:"Striptease", text:"Remove ONE item of their clothing — their choice which — as slowly as you can."},
+  {cat:"Dare", spice:1, pts:10, tag:"Teasing", text:"Give them a look so dirty it doesn't need words. Hold eye contact for 15 seconds."},
+
+  // ---- MEDIUM (2) ----
+  {cat:"Foreplay", spice:2, pts:18, tag:"Kissing", text:"Kiss a slow trail from their jaw, down the neck, to the collarbone. Don't skip ahead."},
+  {cat:"Sensory", spice:2, pts:18, tag:"Blindfold", text:"Blindfold them. Make them guess three things you press to their lips by taste alone."},
+  {cat:"Tease", spice:2, pts:18, tag:"Striptease", text:"30-second dance. They're not allowed to touch until you say so."},
+  {cat:"Position", spice:2, pts:20, tag:"Position play", text:"Pull them onto your lap, face to face. Stay there and tease for one full minute."},
+  {cat:"Dare", spice:2, pts:18, tag:"Hands", text:"Hands only, over the clothes, for 90 seconds. Find out what makes them inhale sharply."},
+  {cat:"Sensory", spice:2, pts:18, tag:"Hair-pulling", text:"A gentle fistful of hair and a slow kiss. Read the reaction — adjust accordingly."},
+  {cat:"Tease", spice:2, pts:20, tag:"Teasing", text:"Get them right to the edge of more… then make them ask for it. Nicely."},
+  {cat:"Foreplay", spice:2, pts:18, tag:"Massage", text:"Massage somewhere that isn't shoulders. Use your mouth for at least part of it."},
+  {cat:"Dare", spice:2, pts:18, tag:"Dirty talk", text:"Tell them exactly what you want to do to them next — in detail. Then pause the game one card."},
+
+  // ---- SPICY (3) ----
+  {cat:"Oral", spice:3, pts:35, tag:"Oral (give)", text:"Go down on them for three minutes. Bonus glory for every reaction you earn."},
+  {cat:"Position", spice:3, pts:30, tag:"Position play", text:"Choose a new position and hold it for one minute of teasing before anything more."},
+  {cat:"Tease", spice:3, pts:28, tag:"Toys", text:"Introduce a toy of their choosing. They pick where it starts."},
+  {cat:"Sensory", spice:3, pts:30, tag:"Sensory (ice/feather)", text:"Ice cube or feather — their pick — on three spots they don't expect."},
+  {cat:"Dare", spice:3, pts:30, tag:"Spanking", text:"One playful smack and a kiss to soothe it. Repeat only if they want more."},
+  {cat:"Roleplay", spice:3, pts:30, tag:"Roleplay", text:"60 seconds in character. You're strangers who 'shouldn't' be doing this."},
+  {cat:"Tease", spice:3, pts:28, tag:"Temperature", text:"A sip of something warm or cold, then a kiss. Let them feel the difference."},
+  {cat:"Position", spice:3, pts:32, tag:"Position play", text:"They lie back and don't move a muscle. You do all the work for two minutes."},
+  {cat:"Oral", spice:3, pts:32, tag:"Oral (receive)", text:"Lie back and receive. Your only job: tell them what's working."},
+
+  // ---- WILD (4) ----
+  {cat:"Quest", spice:4, pts:55, tag:"Oral (give)", text:"Royal decree: don't stop until you've earned at least one gasp AND one giggle."},
+  {cat:"Position", spice:4, pts:50, tag:"Position play", text:"Best-of-three: cycle through three positions, one minute each. Loser of the round gives a massage."},
+  {cat:"Dare", spice:4, pts:50, tag:"Light restraint", text:"Their wrists, your scarf, their consent. Tease the helpless royal for two minutes."},
+  {cat:"Quest", spice:4, pts:60, tag:"Teasing", text:"Edge them: bring them close, back off, three times. Then let them claim the throne."},
+  {cat:"Roleplay", spice:4, pts:50, tag:"Roleplay", text:"Conqueror & ruler. One of you 'surrenders the castle.' Negotiate the terms… physically."},
+  {cat:"Dare", spice:4, pts:48, tag:"Filthy photos", text:"Take one tasteful, ridiculous, only-for-them photo. Delete it together after the laugh."},
+  {cat:"Quest", spice:4, pts:58, tag:"Position play", text:"Your move entirely. Read them, chase every reaction, and go for the crown."},
+  {cat:"Wildcard", spice:4, pts:45, tag:"Risky/adventurous", text:"Pick the one thing on their 'curious to try' list you're both grinning about. Try it."},
+];
+
+/* ---------- Reactions & scoring ---------- */
+const REACTIONS = [
+  {key:"giggle", emoji:"😄", label:"Giggle", pts:5,  msg:"The court is amused! +5"},
+  {key:"gasp",   emoji:"😮", label:"Gasp / Moan", pts:12, msg:"A royal gasp! +12"},
+  {key:"scream", emoji:"🔥", label:"Scream", pts:20, msg:"The whole kingdom heard that! +20"},
+  {key:"climax", emoji:"👑", label:"Claim the Throne", pts:60, msg:"👑 THE THRONE IS CLAIMED! +60"},
+];
+
+/* ---------- Levels / titles ---------- */
+const LEVELS = [
+  {min:0,   t:"Peasant"}, {min:40,  t:"Squire"}, {min:100, t:"Knight"},
+  {min:180, t:"Baron"},   {min:280, t:"Duke"},   {min:400, t:"Royal Consort"},
+  {min:560, t:"Sovereign of the Sheets"},
+];
+function levelFor(p){ let r=LEVELS[0]; for(const l of LEVELS){ if(p>=l.min) r=l; } return r; }
+function nextLevel(p){ for(const l of LEVELS){ if(p<l.min) return l; } return null; }
+
+/* ---------- Achievements ---------- */
+const ACHS = [
+  {id:"first", ic:"⚔️", t:"First Blood", d:"Completed your first quest."},
+  {id:"jester", ic:"🃏", t:"Court Jester", d:"Earned 3 giggles."},
+  {id:"decree", ic:"📜", t:"Royal Decree", d:"Completed a Wild quest."},
+  {id:"coronation", ic:"👑", t:"Coronation", d:"Claimed the throne for the first time."},
+  {id:"loud", ic:"📣", t:"Heard in the Realm", d:"Earned a scream."},
+  {id:"comeback", ic:"🛡️", t:"Royal Comeback", d:"Took the lead after trailing by 50+."},
+];
+
+/* ---------- State ---------- */
+const BLANK = ()=>({
+  players:[], setup:{idx:0},
+  game:{ mode:null, turn:0, card:null, drawn:[], reactions:{}, phase:0, phaseCount:0, achievements:[], log:[] }
+});
+let S = load() || BLANK();
+
+function save(){ localStorage.setItem("sexcalibur", JSON.stringify(S)); }
+function load(){ try{ return JSON.parse(localStorage.getItem("sexcalibur")); }catch(e){ return null; } }
+function reset(){ if(confirm("Burn it all down and start a new reign? Profiles & scores erased.")){ S=BLANK(); save(); route("splash"); } }
+
+/* ---------- Helpers ---------- */
+const $ = (h)=>{ const d=document.createElement("div"); d.innerHTML=h.trim(); return d.firstChild; };
+const app = ()=>document.getElementById("app");
+function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+let toastT;
+function toast(msg){
+  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"), 1900);
+}
+const SPICE_LBL = ["","Mild 🙂","Medium 😏","Spicy 🌶️","Wild 🔥"];
+
+/* ---------- Router ---------- */
+function route(name){
+  window.scrollTo(0,0);
+  const r = SCREENS[name] || SCREENS.splash;
+  app().innerHTML="";
+  app().appendChild(r());
+  // safeword on game screens
+  document.querySelectorAll(".safeword").forEach(e=>e.remove());
+  if(name==="play"){
+    const sw=$(`<div class="safeword">🛑 Safeword — pause</div>`);
+    sw.onclick=()=>{ if(confirm("Pause the game? Nothing is scored. Resume whenever you're both ready.")) route("home"); };
+    document.body.appendChild(sw);
+  }
+}
+
+/* =========================== SCREENS =========================== */
+const SCREENS = {};
+
+SCREENS.splash = ()=>{
+  const wrap=$(`<div class="screen center">
+    <div style="height:14px"></div>
+    <div class="crown">👑</div>
+    <div class="title">Sexcalibur</div>
+    <div class="tag-line">Two players. One throne. Pull the sword.</div>
+    <div style="height:26px"></div>
+    <div class="panel" style="text-align:left">
+      <h3 class="serif" style="color:var(--gold)">Before you enter the castle…</h3>
+      <p class="muted" style="font-size:14px; line-height:1.6">
+        This is a private game for <b>two consenting adults</b>. It only works on enthusiasm.
+        Anything either of you marks as <b>off-limits</b> will never appear. Either of you can
+        <b>pass any quest</b> or hit the <b>safeword</b> to stop, no points lost, no questions asked.
+      </p>
+      <label class="check"><input type="checkbox" id="ageok"/>
+        <span style="font-weight:600">We're both 18+, into it, and consenting. 🔥</span></label>
+      <button class="btn" id="enter" disabled>Enter the Realm</button>
+    </div>
+    <div class="footer">Made as a (much, much better) gift. Everything stays on this device — no accounts, no cloud, no snooping.</div>
+  </div>`);
+  wrap.querySelector("#ageok").onchange=e=>{ wrap.querySelector("#enter").disabled=!e.target.checked; };
+  wrap.querySelector("#enter").onclick=()=>{
+    if(S.players.length>=2) route("home");
+    else { S.setup.idx=0; save(); route("setup"); }
+  };
+  return wrap;
+};
+
+SCREENS.setup = ()=>{
+  const idx = S.setup.idx;
+  const existing = S.players[idx] || {name:"",title:"",crest:"👑",spice:2,give:[],receive:[],curious:[],limits:[],notes:""};
+  const titles = idx===0 ? ["Sovereign One","Their Majesty","The Challenger"] : ["Sovereign Two","The Rival","The Royal"];
+  const crests = ["👑","🔥","🌹","🗡️","🍑","🍒","💋","🐉","⚜️","🦊"];
+
+  const wrap=$(`<div class="screen">
+    <div class="row between">
+      <div><span class="pill">Player ${idx+1} of 2</span></div>
+      <div class="small">Pass the phone after this →</div>
+    </div>
+    <div style="height:10px"></div>
+    <div class="panel">
+      <h2 class="serif" style="color:var(--gold)">Forge your royal profile</h2>
+      <p class="small">The game tailors quests to what you each love — and hides anything you rule out.</p>
+
+      <label>Your name</label>
+      <input type="text" id="name" maxlength="24" placeholder="What should the court call you?" value="${esc(existing.name)}"/>
+
+      <label>Your crest</label>
+      <div class="crest-pick" id="crests">${crests.map(c=>`<div class="crest ${c===existing.crest?'on':''}" data-c="${c}">${c}</div>`).join("")}</div>
+
+      <label>Spice level — how far does your reign go tonight?</label>
+      <input class="slider" type="range" min="1" max="4" step="1" id="spice" value="${existing.spice}"/>
+      <div class="center spiceLbl" id="spiceLbl" style="color:var(--rose2)">${SPICE_LBL[existing.spice]}</div>
+    </div>
+
+    <div class="panel">
+      <h3 class="serif" style="color:var(--rose2)">What you love having done to you</h3>
+      <p class="small">Quests aimed at you will lean into these.</p>
+      <div class="chips" id="receive">${TAGS.map(t=>chip(t,existing.receive)).join("")}</div>
+    </div>
+
+    <div class="panel">
+      <h3 class="serif" style="color:var(--rose2)">What you love doing to them</h3>
+      <div class="chips" id="give">${TAGS.map(t=>chip(t,existing.give)).join("")}</div>
+    </div>
+
+    <div class="panel">
+      <h3 class="serif" style="color:var(--gold)">Curious to try</h3>
+      <p class="small">The game will nudge these in on Wild quests.</p>
+      <div class="chips" id="curious">${TAGS.map(t=>chip(t,existing.curious)).join("")}</div>
+    </div>
+
+    <div class="panel">
+      <h3 class="serif" style="color:#ff9b9b">🚫 Hard limits — off the table</h3>
+      <p class="small">Anything you tap here will <b>never</b> appear in a quest. Non-negotiable. This is the most important section.</p>
+      <div class="chips" id="limits">${TAGS.map(t=>chip(t,existing.limits,"limit")).join("")}</div>
+      <label>Anything else to add or note (optional)</label>
+      <textarea id="notes" placeholder="A fantasy you want on the menu, a mood, a hard no in your own words…">${esc(existing.notes)}</textarea>
+    </div>
+
+    <button class="btn" id="save">${idx===0?"Save & pass the phone →":"Crown us both & begin 👑"}</button>
+    <button class="btn ghost sm" id="back" style="margin-top:10px">Back</button>
+  </div>`);
+
+  // interactions
+  wrap.querySelector("#crests").onclick=e=>{ const c=e.target.closest(".crest"); if(!c)return;
+    wrap.querySelectorAll("#crests .crest").forEach(x=>x.classList.remove("on")); c.classList.add("on"); };
+  wrap.querySelector("#spice").oninput=e=>{ wrap.querySelector("#spiceLbl").textContent=SPICE_LBL[e.target.value]; };
+  wrap.querySelectorAll(".chips").forEach(group=>{
+    group.onclick=e=>{ const c=e.target.closest(".chip"); if(!c)return; c.classList.toggle("on"); };
+  });
+  wrap.querySelector("#back").onclick=()=>{ if(idx===0) route("splash"); else { S.setup.idx=0; save(); route("setup"); } };
+  wrap.querySelector("#save").onclick=()=>{
+    const name=wrap.querySelector("#name").value.trim();
+    if(!name){ toast("Give yourself a name, your majesty 👑"); return; }
+    const getChips=(id)=>[...wrap.querySelectorAll("#"+id+" .chip.on")].map(c=>c.dataset.t);
+    const player={
+      name, crest: wrap.querySelector("#crests .crest.on")?.dataset.c||"👑",
+      spice:+wrap.querySelector("#spice").value,
+      receive:getChips("receive"), give:getChips("give"), curious:getChips("curious"),
+      limits:getChips("limits"), notes:wrap.querySelector("#notes").value.trim(),
+      score:0, achievements:[]
+    };
+    S.players[idx]=player;
+    if(idx===0){ S.setup.idx=1; save(); toast("Pass the phone to player 2 📲"); route("setup"); }
+    else { save(); route("ready"); }
+  };
+  return wrap;
+
+  function chip(t,arr,cls=""){ const on=arr&&arr.includes(t); return `<div class="chip ${cls} ${on?'on':''}" data-t="${t}">${t}</div>`; }
+};
+
+SCREENS.ready = ()=>{
+  const [a,b]=S.players;
+  const wrap=$(`<div class="screen center">
+    <div style="height:20px"></div>
+    <div class="crown">👑</div>
+    <h2 class="serif" style="color:var(--gold)">Both crowned.</h2>
+    <p class="muted">The realm is set. Quests are tuned to your tastes, and your hard limits are locked out.</p>
+    <div class="scorebar" style="margin:18px 0">
+      <div class="scorecard"><div class="big">${a.crest}</div><div class="nm">${esc(a.name)}</div><div class="lv">${SPICE_LBL[a.spice]}</div></div>
+      <div class="scorecard"><div class="big">${b.crest}</div><div class="nm">${esc(b.name)}</div><div class="lv">${SPICE_LBL[b.spice]}</div></div>
+    </div>
+    <button class="btn" id="go">Choose your game →</button>
+  </div>`);
+  wrap.querySelector("#go").onclick=()=>route("home");
+  return wrap;
+};
+
+SCREENS.home = ()=>{
+  const [a,b]=S.players; const turn=S.game.turn;
+  const wrap=$(`<div class="screen">
+    <div class="row between">
+      <div class="title" style="font-size:26px">Sexcalibur</div>
+      <div class="pill" id="reset">⚙︎ reset</div>
+    </div>
+    <div class="tag-line" style="font-size:13px; margin-bottom:14px">The Throne Room</div>
+
+    <div class="scorebar">
+      ${scoreCard(a,turn===0)}
+      ${scoreCard(b,turn===1)}
+    </div>
+    <div class="center small" style="margin-top:8px">👑 First to <b>560</b> is crowned <b>Sovereign of the Sheets</b> — or just play till you collapse.</div>
+
+    <div class="divider"></div>
+    <h3 class="serif" style="color:var(--gold)">Choose a game</h3>
+    <div class="modes">
+      ${mode("quick","🎲","Quick Quest","One card at a time. Take turns, rack up glory.")}
+      ${mode("campaign","🗺️","The Campaign","A guided escalation: Warm-Up → Exploration → Heat → Finale.")}
+      ${mode("roulette","🎡","Royal Roulette","Random spice, random target. Chaos reigns.")}
+    </div>
+
+    <button class="btn ghost sm" id="profiles" style="margin-top:16px">View / edit profiles</button>
+    ${S.game.achievements.length? `<div class="divider"></div><h3 class="serif" style="color:var(--gold)">Trophies</h3>${
+      S.game.achievements.map(id=>{const a=ACHS.find(x=>x.id===id); return a?`<div class="ach"><div class="ic">${a.ic}</div><div><div class="t">${a.t}</div><div class="d">${a.d}</div></div></div>`:""}).join("")
+    }`:""}
+    <div class="footer">Tip: keep the phone between you and pass it on each turn. What happens in the realm, stays in the realm.</div>
+  </div>`);
+
+  wrap.querySelector("#reset").onclick=reset;
+  wrap.querySelector("#profiles").onclick=()=>{ S.setup.idx=0; save(); route("setup"); };
+  wrap.querySelectorAll(".mode").forEach(m=> m.onclick=()=>startGame(m.dataset.m));
+  return wrap;
+
+  function scoreCard(p,active){ const lv=levelFor(p.score);
+    return `<div class="scorecard ${active?'active':''}"><div class="big">${p.crest}</div>
+      <div class="nm">${esc(p.name)}</div><div class="lv">${lv.t}</div><div class="pts">${p.score}</div>
+      ${active?'<div class="small" style="color:var(--rose2);font-weight:800">▶ your move</div>':'<div class="small">&nbsp;</div>'}</div>`; }
+  function mode(id,ic,t,d){ return `<div class="mode" data-m="${id}"><div class="mic">${ic}</div><div><div class="mt">${t}</div><div class="md">${d}</div></div></div>`; }
+};
+
+/* ---------- Game engine ---------- */
+const PHASES=[ {name:"Warm-Up",spice:1}, {name:"Exploration",spice:2}, {name:"Heat",spice:3}, {name:"Finale",spice:4} ];
+
+function startGame(mode){
+  S.game.mode=mode; S.game.drawn=[]; S.game.reactions={}; S.game.phase=0; S.game.phaseCount=0;
+  // keep scores across games unless brand new; keep turn
+  drawCard(); save(); route("play");
+}
+
+function activePlayer(){ return S.players[S.game.turn]; }
+function passivePlayer(){ return S.players[S.game.turn^1]; }
+
+function eligibleCards(){
+  const receiver = passivePlayer(); // the card is performed ON the partner
+  const actor = activePlayer();
+  let maxSpice = Math.min(actor.spice, receiver.spice); // both must be up for it
+  let pool = DECK.filter(c=>{
+    if(c.spice>maxSpice) return false;
+    if(receiver.limits.includes(c.tag)) return false;       // hard-limit lockout
+    if(actor.limits.includes(c.tag)) return false;          // actor's own limits too
+    if(S.game.drawn.includes(c.text)) return false;         // no repeats this game
+    return true;
+  });
+  // mode constraints
+  if(S.game.mode==="campaign"){
+    const ph=PHASES[Math.min(S.game.phase,PHASES.length-1)];
+    const exact=pool.filter(c=>c.spice===ph.spice);
+    if(exact.length) pool=exact; else pool=pool.filter(c=>c.spice<=ph.spice);
+  }
+  if(!pool.length){ // exhausted — allow repeats, respecting limits/spice
+    pool = DECK.filter(c=> c.spice<=maxSpice && !receiver.limits.includes(c.tag) && !actor.limits.includes(c.tag));
+  }
+  // weight: boost cards matching receiver's "receive"/"curious" or actor's "give"
+  const weighted=[];
+  pool.forEach(c=>{
+    let w=1;
+    if(receiver.receive.includes(c.tag)) w+=3;
+    if(actor.give.includes(c.tag)) w+=2;
+    if(c.spice===4 && (receiver.curious.includes(c.tag)||actor.curious.includes(c.tag))) w+=4;
+    for(let i=0;i<w;i++) weighted.push(c);
+  });
+  return weighted.length?weighted:pool;
+}
+
+function drawCard(){
+  const pool=eligibleCards();
+  const c=pool[Math.floor(Math.random()*pool.length)];
+  S.game.card=c; S.game.reactions={};
+  if(c) S.game.drawn.push(c.text);
+}
+
+SCREENS.play = ()=>{
+  const actor=activePlayer(), partner=passivePlayer(), c=S.game.card;
+  const phase = S.game.mode==="campaign"?PHASES[Math.min(S.game.phase,PHASES.length-1)]:null;
+  const wrap=$(`<div class="screen">
+    <div class="row between">
+      <div class="pill" id="home">⌂ Throne Room</div>
+      <div class="pill">${S.game.mode==="campaign"?"🗺️ Campaign":S.game.mode==="roulette"?"🎡 Roulette":"🎲 Quick Quest"}</div>
+    </div>
+    ${phase?`<div class="phaseBar">${PHASES.map((p,i)=>`<div class="phaseDot ${i<=S.game.phase?'on':''}"></div>`).join("")}</div>
+      <div class="center small" style="margin-bottom:6px">Phase ${S.game.phase+1}/4 — <b style="color:var(--gold)">${phase.name}</b></div>`:""}
+
+    <div class="scorebar" style="margin:10px 0 16px">
+      ${miniScore(S.players[0],S.game.turn===0)}
+      ${miniScore(S.players[1],S.game.turn===1)}
+    </div>
+
+    <div class="turnFlag">${actor.crest} ${esc(actor.name)} — this one's yours. ${partner.crest} ${esc(partner.name)} receives.</div>
+    <div class="qcard">
+      <div class="qpts">+${c?c.pts:0} 👑</div>
+      <div class="qcat">${c?c.cat:""}</div>
+      <div class="qtext">${c?esc(c.text):"You've done it all — generate more or crown a winner."}</div>
+      <div class="small" style="position:absolute;bottom:16px;left:20px;opacity:.7">${c?("theme: "+c.tag):""}</div>
+    </div>
+
+    <div class="grid2" style="margin-top:14px">
+      <button class="btn rose sm" id="accept">Accept the quest ⚔️</button>
+      <button class="btn ghost sm" id="pass">Pass (no penalty)</button>
+    </div>
+    <div class="footer">Hard limits are locked out. Pass freely. The 🛑 safeword (bottom) pauses everything, unscored.</div>
+  </div>`);
+
+  wrap.querySelector("#home").onclick=()=>route("home");
+  wrap.querySelector("#pass").onclick=()=>{ drawCard(); save(); route("play"); toast("Passed. New quest drawn."); };
+  const acc=wrap.querySelector("#accept");
+  if(!c){ acc.disabled=true; acc.textContent="No quests fit your settings"; }
+  acc.onclick=()=>{ if(!S.game.card){ toast("No quests match your limits/spice — loosen one in profiles 👑"); return; } route("reactions"); };
+  return wrap;
+
+  function miniScore(p,active){ return `<div class="scorecard ${active?'active':''}" style="padding:8px">
+    <div class="nm">${p.crest} ${esc(p.name)}</div><div class="pts" style="font-size:22px">${p.score}</div></div>`; }
+};
+
+SCREENS.reactions = ()=>{
+  const actor=activePlayer(), c=S.game.card;
+  if(!c){ return SCREENS.home(); }
+  const wrap=$(`<div class="screen">
+    <div class="pill" id="back2">‹ back to the quest</div>
+    <div style="height:12px"></div>
+    <div class="panel center">
+      <div class="qcat">Quest complete</div>
+      <h2 class="serif" style="color:var(--gold); margin-top:6px">+${c.pts} glory to ${esc(actor.name)} 👑</h2>
+      <p class="small">Tap every reaction you earned. Bonus glory for each — claiming the throne is worth the most.</p>
+      <div class="react" id="react">
+        ${REACTIONS.map(r=>`<div class="reactBtn" data-k="${r.key}"><b>${r.emoji}</b>${r.label} <span style="color:var(--gold)">+${r.pts}</span></div>`).join("")}
+      </div>
+      <button class="btn" id="finish">Tally & pass the crown →</button>
+    </div>
+  </div>`);
+  const picked={};
+  wrap.querySelector("#react").onclick=e=>{ const b=e.target.closest(".reactBtn"); if(!b)return;
+    const k=b.dataset.k; picked[k]=!picked[k]; b.classList.toggle("on", picked[k]); };
+  wrap.querySelector("#back2").onclick=()=>route("play");
+  wrap.querySelector("#finish").onclick=()=>{
+    let gained=c.pts; const got=[];
+    REACTIONS.forEach(r=>{ if(picked[r.key]){ gained+=r.pts; got.push(r); } });
+    actor.score+=gained;
+    // achievements
+    award("first");
+    if(picked.scream) award("loud");
+    if(picked.climax) award("coronation");
+    if(c.spice===4) award("decree");
+    S.game._giggles=(S.game._giggles||0)+(picked.giggle?1:0);
+    if(S.game._giggles>=3) award("jester");
+    const lead = activePlayer().score - passivePlayer().score;
+    if(S.game._wasBehind && lead>0) award("comeback");
+    S.game._wasBehind = (passivePlayer().score - activePlayer().score) >= 50;
+
+    // campaign progression
+    if(S.game.mode==="campaign"){ S.game.phaseCount++; if(S.game.phaseCount>=2 && S.game.phase<PHASES.length-1){ S.game.phase++; S.game.phaseCount=0; } }
+
+    const win = actor.score>=560;
+    S.game.turn ^= 1; // pass the crown
+    drawCard(); save();
+
+    const climax = picked.climax;
+    toast(got.length? (climax?"👑 THE THRONE IS CLAIMED! +"+(gained-c.pts)+" bonus":"+"+(gained-c.pts)+" bonus glory!") : "+"+c.pts+" glory");
+    if(win){ route("victory"); } else { route("play"); }
+  };
+  return wrap;
+};
+
+function award(id){ if(!S.game.achievements.includes(id)){ S.game.achievements.push(id); const a=ACHS.find(x=>x.id===id);
+  setTimeout(()=>toast(`🏆 Trophy: ${a.t}`), 700); } }
+
+SCREENS.victory = ()=>{
+  const [a,b]=S.players; const win = a.score>=b.score?a:b; const lose=win===a?b:a;
+  const wrap=$(`<div class="screen center">
+    <div style="height:24px"></div>
+    <div class="crown" style="font-size:70px">👑</div>
+    <div class="title" style="font-size:30px">${esc(win.name)} is crowned</div>
+    <div class="tag-line">Sovereign of the Sheets</div>
+    <div class="scorebar" style="margin:22px 0">
+      <div class="scorecard active"><div class="big">${win.crest}</div><div class="nm">${esc(win.name)}</div><div class="pts">${win.score}</div></div>
+      <div class="scorecard"><div class="big">${lose.crest}</div><div class="nm">${esc(lose.name)}</div><div class="pts">${lose.score}</div></div>
+    </div>
+    <p class="muted">A hard-fought reign. The loser owes the winner one royal favor of their choosing. 😏</p>
+    <button class="btn" id="keep">Play on (keep scores)</button>
+    <button class="btn ghost" id="newreign">New reign (reset scores)</button>
+  </div>`);
+  wrap.querySelector("#keep").onclick=()=>{ save(); route("home"); };
+  wrap.querySelector("#newreign").onclick=()=>{
+    S.players.forEach(p=>{p.score=0;p.achievements=[];}); S.game.achievements=[]; S.game._giggles=0; save(); route("home");
+  };
+  return wrap;
+};
+
+/* ---------- boot ---------- */
+route(S.players.length>=2 ? "home" : "splash");
+</script>
+</body>
+</html>
